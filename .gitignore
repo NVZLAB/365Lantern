@@ -1,0 +1,11 @@
+# Local reference scripts and assets; never commit.
+_EXCLUDE/
+work/
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+artifacts/
+evidence/
+.env
