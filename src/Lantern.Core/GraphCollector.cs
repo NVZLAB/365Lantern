@@ -31,7 +31,7 @@ public sealed class GraphCollector(HttpClient http, Func<CancellationToken, Task
                 if (!response.IsSuccessStatusCode)
                 {
                     state = evidence.Count == 0 ? "Failed" : "Partial";
-                    detail = $"Microsoft Graph returned HTTP {(int)response.StatusCode}. Check consent, role, licensing and availability. No response body was logged.";
+                    detail = await GraphFailure.DescribeAsync(response, ct);
                     break;
                 }
                 using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));

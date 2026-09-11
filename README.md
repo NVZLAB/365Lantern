@@ -20,9 +20,10 @@ For checks: `./Start-365Lantern.ps1 -Check`. The launcher also supports a worksp
 
 - Desktop navigation and System / Light / Dark palettes, with high-contrast resource handling.
 - Clearly labeled synthetic single-account investigation: risky sign-in, forwarding rule, raw evidence and collection coverage.
-- Interactive Microsoft sign-in prototype using MSAL's default memory cache; fixed tenant authority; no client secret or persistent cache integration.
+- Interactive Microsoft sign-in using MSAL's default memory cache; fixed tenant authority; no client secret or persistent cache integration. Successful sign-in opens Overview with the operator account prefilled for review.
 - Live Microsoft Graph **interactive sign-in** collection for an exact UPN and bounded time range, pagination, deduplication, cancellation and limited throttling retries.
 - Initial findings based only on medium/high Entra risk values. No geographic anomaly scoring or claim that missing risk data means safe.
+- Specific guidance for Microsoft's known licensing-denial code; unknown errors remain generic. Failed collections with no evidence display an incomplete-investigation headline.
 - Explicit ZIP export containing raw `evidence.json`, readable `summary.txt` and a SHA-256 `manifest.json`.
 - Disconnect clears app references, visible results and the MSAL account cache. No response actions exist.
 

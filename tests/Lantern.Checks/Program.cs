@@ -43,6 +43,32 @@ Check(partial.Coverage[0].Status == "Partial" && partial.Evidence.Count == 1, "u
 using var canceled = new CancellationTokenSource(); canceled.Cancel();
 try { await new GraphCollector(http, _ => Task.FromResult("synthetic-token")).CollectAsync("test", "alex@example.com", now.AddDays(-7), now, canceled.Token); throw new Exception("Cancellation ignored"); }
 catch (OperationCanceledException) { Check(true, "cancellation stops collection"); }
+const string privateMarker = "PRIVATE-RESPONSE-CONTENT";
+const string licenseBody = """{"error":{"code":"Authentication_RequestFromNonPremiumTenantOrB2CTenant","message":"PRIVATE-RESPONSE-CONTENT","innerError":{"request-id":"PRIVATE-RESPONSE-CONTENT"}}}""";
+using var licenseHttp = new HttpClient(new ScriptedHandler([new(HttpStatusCode.Forbidden) { Content = new StringContent(licenseBody) }]));
+var licenseResult = await new GraphCollector(licenseHttp, _ => Task.FromResult("synthetic-token")).CollectAsync("test", "alex@example.com", now.AddDays(-1), now, default);
+Check(licenseResult.Coverage[0].Status == "Failed" && licenseResult.Coverage[0].Detail.Contains("P1 or P2"), "known licensing error produces specific guidance");
+Check(!licenseResult.Coverage[0].Detail.Contains(privateMarker), "error messages and inner error data do not reach coverage");
+using (var archive = new ZipArchive(new MemoryStream(EvidenceExport.Create(licenseResult))))
+    foreach (var entry in archive.Entries)
+    {
+        using var reader = new StreamReader(entry.Open());
+        Check(!reader.ReadToEnd().Contains(privateMarker), "export does not retain private error body in " + entry.Name);
+    }
+foreach (var body in new[] { "", "not-json", "null", "[]", "{\"error\":null}", "{\"error\":{\"code\":42}}", "{\"error\":{\"code\":\"PRIVATE-RESPONSE-CONTENT\"}}", new string('x', 17000) })
+{
+    using var response = new HttpResponseMessage(HttpStatusCode.Forbidden) { Content = new StringContent(body) };
+    var description = await GraphFailure.DescribeAsync(response, default);
+    Check(description.Contains("HTTP 403") && !description.Contains("P1 or P2") && !description.Contains(privateMarker), "unrecognized/malformed error safely falls back");
+}
+using var wrongStatus = new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent(licenseBody) };
+Check(!(await GraphFailure.DescribeAsync(wrongStatus, default)).Contains("P1 or P2"), "licensing diagnosis requires the expected HTTP status");
+using var partialLicenseHttp = new HttpClient(new ScriptedHandler([
+    new(HttpStatusCode.OK) { Content = new StringContent("""{"value":[{"id":"one"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/auditLogs/signIns?$skiptoken=two"}""") },
+    new(HttpStatusCode.Forbidden) { Content = new StringContent(licenseBody) }
+]));
+var partialLicense = await new GraphCollector(partialLicenseHttp, _ => Task.FromResult("synthetic-token")).CollectAsync("test", "alex@example.com", now.AddDays(-1), now, default);
+Check(partialLicense.Coverage[0].Status == "Partial" && partialLicense.Evidence.Count == 1 && partialLicense.Coverage[0].Detail.Contains("P1 or P2"), "licensing failure after a page preserves partial evidence");
 Console.WriteLine($"{passed} checks passed.");
 
 sealed class ScriptedHandler(IEnumerable<HttpResponseMessage> responses) : HttpMessageHandler

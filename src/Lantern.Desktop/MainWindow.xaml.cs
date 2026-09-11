@@ -47,12 +47,26 @@ public partial class MainWindow : Window
     }
     private void Navigate(object sender, RoutedEventArgs e)
     {
-        page = (string)((Button)sender).Tag;
+        ShowPage((string)((Button)sender).Tag);
+    }
+    private void ShowPage(string name)
+    {
+        page = name;
         PageTitle.Text = page == "Overview" ? "Tenant overview" : page;
         ConnectionPanel.Visibility = page == "Connect tenant" ? Visibility.Visible : Visibility.Collapsed;
         ResponsePanel.Visibility = page == "Response" ? Visibility.Visible : Visibility.Collapsed;
         InvestigationPanel.Visibility = page is "Response" or "Connect tenant" ? Visibility.Collapsed : Visibility.Visible;
         RefreshFindings();
+    }
+    private void ShowConnected(string tenant, string? operatorUpn)
+    {
+        SessionLabel.Text = "Connected · Read-only";
+        AccountBox.Text = operatorUpn ?? "";
+        ShowPage("Overview");
+        SummaryLabel.Text = "Connected. Ready to investigate.";
+        ScopeLabel.Text = "Confirm the account and time range, then select Collect live sign-ins. Signing in does not collect evidence.";
+        StatusLabel.Text = $"Connected to tenant {tenant}. No tenant changes made.";
+        AccountBox.Focus();
     }
     private void SetBusy(bool busy)
     {
@@ -80,8 +94,7 @@ public partial class MainWindow : Window
         try
         {
             await session.ConnectAsync(ClientIdBox.Text.Trim(), TenantIdBox.Text.Trim(), operation.Token);
-            SessionLabel.Text = "Connected · Read-only";
-            StatusLabel.Text = $"Connected to tenant {session.TenantId}. Choose an account to collect sign-ins.";
+            if (!closing) ShowConnected(session.TenantId!, session.Operator);
         }
         catch (OperationCanceledException) { StatusLabel.Text = "Sign-in canceled or timed out. No tenant changes made."; }
         catch (ArgumentException ex) { StatusLabel.Text = ex.Message; }
@@ -129,7 +142,9 @@ public partial class MainWindow : Window
     private void ShowInvestigation(Investigation value)
     {
         investigation = value;
-        SummaryLabel.Text = $"{value.Findings.Count} findings to review · {value.Coverage.Count(c => c.Status != "Complete")} collection gaps";
+        SummaryLabel.Text = value.Evidence.Count == 0 && value.Coverage.Any(c => c.Status is "Failed" or "Partial")
+            ? "No evidence collected · Investigation incomplete"
+            : $"{value.Findings.Count} findings to review · {value.Coverage.Count(c => c.Status != "Complete")} collection gaps";
         ScopeLabel.Text = $"{(value.IsDemo ? "SYNTHETIC DATA" : "LIVE DATA")} · {value.Account} · {value.StartUtc:yyyy-MM-dd HH:mm} – {value.EndUtc:yyyy-MM-dd HH:mm} UTC";
         CoverageList.ItemsSource = value.Coverage; ExportButton.IsEnabled = true; RefreshFindings();
     }
@@ -138,7 +153,9 @@ public partial class MainWindow : Window
         if (investigation is null) return;
         FindingsList.ItemsSource = investigation.Findings.Where(f => page switch
         { "Sign-ins" => f.Source == "Entra sign-ins", "Mailbox rules" => f.Source.Contains("Exchange"), _ => true }).ToArray();
-        FindingDetail.Text = "Select a finding to see its explanation. No matching indicators does not establish that an account is safe.";
+        FindingDetail.Text = investigation.Evidence.Count == 0 && investigation.Coverage.Any(c => c.Status is "Failed" or "Partial")
+            ? "Collection did not return evidence. This investigation cannot assess account compromise; review the collection gaps above."
+            : "Select a finding to see its explanation. No matching indicators does not establish that an account is safe.";
         RawPanel.Visibility = page == "Evidence" ? Visibility.Visible : Visibility.Collapsed;
         RawEvidence.Text = page == "Evidence" ? JsonSerializer.Serialize(investigation.Evidence, new JsonSerializerOptions { WriteIndented = true }) : "";
     }
@@ -180,9 +197,15 @@ public partial class MainWindow : Window
             using var file = File.Create(Path.Combine(directory, theme.ToLowerInvariant() + ".png")); png.Save(file);
         }
         if (investigation?.Findings.Count != 2 || !ExportButton.IsEnabled) throw new InvalidOperationException("Demo UI failed.");
+        ShowPage("Connect tenant");
+        ShowConnected("synthetic-tenant", "alex@example.com");
+        if (ConnectionPanel.Visibility != Visibility.Collapsed || InvestigationPanel.Visibility != Visibility.Visible ||
+            AccountBox.Text != "alex@example.com" || page != "Overview") throw new InvalidOperationException("Connected transition failed.");
+        ShowInvestigation(investigation with { Findings = [], Evidence = [], Coverage = [new("Entra sign-ins", "Failed", 0, "Synthetic failure")] });
+        if (!SummaryLabel.Text.Contains("Investigation incomplete") || !FindingDetail.Text.Contains("cannot assess")) throw new InvalidOperationException("Failed collection UI failed.");
         await session.DisconnectAsync(); ClearInvestigation();
         if (FindingsList.ItemsSource is not null || RawEvidence.Text.Length != 0 || ExportButton.IsEnabled) throw new InvalidOperationException("Clear UI failed.");
-        File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: demo findings, light/dark renders, and clearing investigation UI.");
+        File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: demo findings, light/dark renders, connected navigation, failed collection summary, and clearing investigation UI.");
         Close();
     }
 }
