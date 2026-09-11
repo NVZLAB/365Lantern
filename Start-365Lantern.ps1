@@ -1,5 +1,15 @@
 param([switch]$Check)
 $ErrorActionPreference = 'Stop'
+# Never overwrite or terminate a running investigation to rebuild the app.
+$workspacePrefix = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\') + '\'
+$runningInstances = @(Get-Process -Name '365Lantern' -ErrorAction SilentlyContinue | Where-Object {
+    $_.Path -and $_.Path.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnoreCase)
+})
+if ($runningInstances.Count -gt 0) {
+    $instanceIds = ($runningInstances | ForEach-Object { $_.Id }) -join ', '
+    Write-Warning "365Lantern is already running from this workspace (PID: $instanceIds). Export any evidence you need, close all 365Lantern windows, then run this launcher again. No build was started and your session was left open."
+    return
+}
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
 $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
