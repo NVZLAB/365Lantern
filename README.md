@@ -45,3 +45,4 @@ Remediation, tenant-wide correlation and PDF reporting are later work. This buil
 - `design/mockups`: initial interface concepts.
 
 MIT licensed. No telemetry, advertising or paid service dependency is built into 365Lantern. Microsoft services have their own licensing and access requirements.
+`Import JSON…` supports local Entra sign-in JSON without signing in. See [import details](docs/test-tenant.md#local-json-sign-in-import).

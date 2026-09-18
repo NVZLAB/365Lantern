@@ -14,6 +14,7 @@ $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
 $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
 $env:DOTNET_CLI_HOME = Join-Path $PSScriptRoot 'work/dotnet-home'
+$env:PSModulePath = (Join-Path $PSScriptRoot 'work/modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 $env:NUGET_PACKAGES = Join-Path $PSScriptRoot 'work/nuget'
 $localSdk = Join-Path $PSScriptRoot 'work/toolchain/dotnet/dotnet.exe'
 $sdk = if (Test-Path $localSdk) { $localSdk } else { 'dotnet' }

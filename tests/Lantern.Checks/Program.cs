@@ -69,6 +69,62 @@ using var partialLicenseHttp = new HttpClient(new ScriptedHandler([
 ]));
 var partialLicense = await new GraphCollector(partialLicenseHttp, _ => Task.FromResult("synthetic-token")).CollectAsync("test", "alex@example.com", now.AddDays(-1), now, default);
 Check(partialLicense.Coverage[0].Status == "Partial" && partialLicense.Evidence.Count == 1 && partialLicense.Coverage[0].Detail.Contains("P1 or P2"), "licensing failure after a page preserves partial evidence");
+const string importRow = """{"id":"event","userPrincipalName":"alex@example.com","createdDateTime":"2026-09-10T10:00:00Z","riskLevelDuringSignIn":"high"}""";
+var input = System.Text.Encoding.UTF8.GetBytes("[" + importRow + "]");
+var imported = JsonSignInImport.Read(input, now);
+Check(imported.Import?.Sha256 == Convert.ToHexString(SHA256.HashData(input)) && !imported.IsDemo && imported.Coverage[0].Status == "Imported", "import hashes exact input and does not claim live or complete coverage");
+Check(imported.Findings.Count == 1 && imported.StartUtc == now.AddHours(-2), "import analyzes risk and uses observed dates");
+var wrapped = JsonSignInImport.Read(System.Text.Encoding.UTF8.GetBytes("{\"value\":[" + importRow + "," + importRow.Replace("alex@example.com", "other@example.com") + "],\"@odata.nextLink\":\"https://example.invalid\"}"), now);
+Check(wrapped.Evidence.Count == 2 && wrapped.Findings[1].Account == "other@example.com" && wrapped.Evidence[0].Id != wrapped.Evidence[1].Id, "wrapped multi-account import preserves duplicates with unique evidence references");
+foreach (var invalid in new[] { "[]", "null", "{}", "[{}]", "[" + importRow.Replace("2026-09-10T10:00:00Z", "invalid") + "]", "[" + importRow.Replace("\"id\":\"event\"", "\"id\":\"event\",\"id\":\"other\"") + "]" })
+{
+    try { JsonSignInImport.Read(System.Text.Encoding.UTF8.GetBytes(invalid), now); throw new Exception("Invalid import accepted"); }
+    catch (InvalidDataException) { Check(true, "invalid import rejected atomically"); }
+}
+try { JsonSignInImport.Read(input, now, canceled.Token); throw new Exception("Import cancellation ignored"); }
+catch (OperationCanceledException) { Check(true, "import honors cancellation"); }
+var noRisk = JsonSignInImport.Read(System.Text.Encoding.UTF8.GetBytes("[" + importRow.Replace("\"high\"", "42") + "]"), now);
+Check(noRisk.Findings.Count == 0, "unexpected risk type does not crash or invent a finding");
+using (var archive = new ZipArchive(new MemoryStream(EvidenceExport.Create(imported))))
+{
+    using var reader = new StreamReader(archive.GetEntry("summary.txt")!.Open());
+    var summary = reader.ReadToEnd();
+    Check(summary.Contains("IMPORTED DATA") && summary.Contains(imported.Import!.Sha256) && !summary.Contains("LIVE COLLECTION"), "export identifies import and its source hash");
+}
+Evidence Event(string id, int minutes, int code, string country = "US", string upn = "alex@example.com", string client = "Browser") => new(id, "Entra sign-ins", JsonSerializer.SerializeToElement(new { id, createdDateTime = now.AddMinutes(minutes), userPrincipalName = upn, status = new { errorCode = code }, location = new { countryOrRegion = country }, clientAppUsed = client }));
+var burst = Enumerable.Range(0, 5).Select(i => Event("failure" + i, i, 50126)).Append(Event("success", 6, 0)).ToArray();
+Check(SignInFindings.Analyze(burst, "alex@example.com").Any(f => f.Title.Contains("repeated")), "five invalid-password failures followed by success are detected");
+Check(SignInFindings.Analyze(burst.Take(5).Append(Event("other", 6, 0, upn: "other@example.com")), "fallback").Count == 0, "failure correlation stays within an account");
+Check(SignInFindings.Analyze(burst.Take(5).Append(Event("late", 30, 0)), "fallback").Count == 0, "old failures do not trigger a burst finding");
+Check(SignInFindings.Analyze(Enumerable.Range(0, 5).Select(i => Event("mfa" + i, i, 50076)).Append(Event("ok", 6, 0)), "fallback").Count == 0, "MFA interruptions are not invalid-password failures");
+Check(SignInFindings.Analyze([Event("us", 0, 0), Event("gb", 30, 0, "GB")], "fallback").Count == 1, "rapid country change is flagged");
+Check(SignInFindings.Analyze([Event("us", 0, 0), Event("gb", 90, 0, "GB")], "fallback").Count == 0, "country changes outside threshold are not flagged");
+Check(SignInFindings.Analyze([Event("legacy", 0, 0, client: "IMAP"), Event("failedlegacy", 1, 50126, client: "IMAP")], "fallback").Count == 1, "legacy category requires successful status");
+var exchangeResult = ExchangeEvidence.Parse("""{"rulesOk":true,"mailboxOk":true,"rules":[{"Enabled":true,"ForwardTo":["review@example.com"],"DeleteMessage":true},{"Enabled":false,"ForwardTo":["disabled@example.com"]}],"mailbox":{"ForwardingSmtpAddress":"smtp:review@example.com"}}""", "alex@example.com");
+Check(exchangeResult.Evidence.Count == 3 && exchangeResult.Findings.Count == 3, "Exchange rules and mailbox forwarding are analyzed without flagging disabled rules");
+var exchangePartial = ExchangeEvidence.Parse("""{"rulesOk":false,"mailboxOk":true,"rules":[],"mailbox":{"ForwardingSmtpAddress":null}}""", "alex@example.com");
+Check(exchangePartial.Coverage[0].Status == "Failed" && exchangePartial.Coverage[1].Status == "Complete" && exchangePartial.Findings.Count == 0, "Exchange source failures remain independent");
+Check(ExchangeEvidence.Failed("Unavailable").Coverage.All(c => c.Status == "Failed"), "Exchange failure cannot imply clean configuration");
+var hiddenCoverage = InvestigationCoverage.Describe(imported with { Evidence = [new("hidden", "Entra sign-ins", JsonSerializer.SerializeToElement(new { createdDateTime = "2026-09-11T12:00:00Z", riskLevelDuringSignIn = "hidden" }))] });
+Check(hiddenCoverage.Contains("1 of 1") && hiddenCoverage.Contains("2026-09-11 12:00") && hiddenCoverage.Contains("do not prove continuous coverage"), "coverage exposes hidden risk and observed dates without inventing retention");
+Check(InvestigationCoverage.Describe(imported with { Evidence = [] }).Contains("dates: unavailable"), "empty evidence cannot imply date coverage");
+using (var archive = new ZipArchive(new MemoryStream(EvidenceExport.Create(imported))))
+{
+    using var reader = new StreamReader(archive.GetEntry("summary.txt")!.Open());
+    Check(reader.ReadToEnd().Contains("Entra risk assessment unavailable"), "export includes analysis limitations");
+}
+var diagnosticRows = new[] {
+ new Evidence("a", "Entra sign-ins", JsonSerializer.SerializeToElement(new { id="a", userPrincipalName="alex@example.com", ipAddress="::ffff:192.0.2.1", createdDateTime="2026-09-10T10:00:00Z", status=new { errorCode=0 }, location=new { countryOrRegion="us", state="Washington" } })),
+ new Evidence("b", "Entra sign-ins", JsonSerializer.SerializeToElement(new { id="b", userPrincipalName="alex@example.com", ipAddress="192.0.2.1", createdDateTime="2026-09-10T11:00:00Z", status=new { errorCode=50076 }, location=new { countryOrRegion="US", state="Washington" } })),
+ new Evidence("c", "Entra sign-ins", JsonSerializer.SerializeToElement(new { id="c", ipAddress="not-an-ip" }))
+};
+var diagnostics = SignInDiagnostics.Create(diagnosticRows.Append(diagnosticRows[0]));
+Check(diagnostics.Events.Count == 3 && diagnostics.Duplicates == 1, "diagnostic duplicate IDs do not inflate totals");
+Check(diagnostics.IPs.Single(g => g.Value == "192.0.2.1").Events == 2 && diagnostics.IPs.Single(g => g.Value == "192.0.2.1").Successful == 1, "canonical IP grouping separates success from non-success");
+Check(diagnostics.Countries.Single(g => g.Value == "US").Events == 2 && diagnostics.Regions.Any(g => g.Value == "US / WASHINGTON"), "geography grouping normalizes case and qualifies states by country");
+Check(diagnostics.Events.Single(e => e.EvidenceId == "c").Outcome == "Unknown" && diagnostics.IPs.Any(g => g.Value == "Unknown"), "missing outcomes and invalid IPs are explicitly unknown");
+Check(diagnostics.IPs.Single(g => g.Value == "192.0.2.1").FirstUtc == "2026-09-10 10:00:00", "group first-seen uses observed UTC date");
+Check(SignInDiagnostics.Create([]).Summary.Contains("0 distinct events"), "empty diagnostics are safe");
 Console.WriteLine($"{passed} checks passed.");
 
 sealed class ScriptedHandler(IEnumerable<HttpResponseMessage> responses) : HttpMessageHandler

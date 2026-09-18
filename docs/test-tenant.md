@@ -26,3 +26,34 @@ Interactive sign-in succeeded in the owner's test tenant on 2026-09-11 after a s
 The updated collector recognizes Microsoft's `Authentication_RequestFromNonPremiumTenantOrB2CTenant` code on HTTP 403 and displays fixed licensing/tenant-eligibility guidance. Other 403 responses remain generic. It does not display or export server error messages, unknown codes or innerError fields. The operator's retry on 2026-09-11 displayed this specific guidance, confirming the known licensing/tenant-eligibility denial. Authentication is validated; successful live sign-in evidence collection remains unvalidated.
 
 Microsoft requires Entra ID P1 or P2 for Graph sign-in log retrieval. No license purchase, trial activation or broader permission grant has been performed. See [Microsoft's licensing-error guidance](https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/users-groups-entra-apis/b2c-or-tenant-premium-license-sign-in-activities).
+
+### Local JSON sign-in import
+
+Select **Import JSON…** on Overview; no connection is required. Import accepts a UTF-8 JSON array of Entra sign-in events, or an object with a `value` array. Each event needs `id`, `userPrincipalName`, and `createdDateTime`. Limits: 32 MiB, 100,000 records, depth 64. Empty, malformed and ambiguous records are rejected as a whole; the previous investigation is retained.
+
+All accounts and dates in the file are imported. The live account/time controls do not filter imports. Displayed dates are observed event bounds, not the original export filters. Tenant origin and completeness cannot be verified. Duplicate events are preserved. Missing or hidden risk fields do not establish safety; current analysis only flags explicit medium/high Entra risk values.
+
+The app reads the selected file into memory without copying it, uploading it or storing its path. Explicit evidence export includes the imported events and original input SHA-256/byte count; the original file is not embedded. Keep the source file separately if your case requires it. The hash establishes byte identity, not authenticity. Clear session removes the app's investigation references; it does not remove your downloaded or exported files.
+
+### Direct Exchange collection (preview)
+
+Investigate account now attempts Graph sign-ins and then current Exchange configuration, even when the sign-in API returns a licensing failure. Sign in first, enter the exact mailbox UPN, and select Investigate account. Exchange may request an additional browser consent/sign-in. No tenant writes are implemented.
+
+One-time prerequisites:
+
+1. PowerShell 7 in its standard Windows install location.
+2. ExchangeOnlineManagement 3.7.0 or later. For this checkout, run `Save-Module ExchangeOnlineManagement -MinimumVersion 3.7.0 -Repository PSGallery -Path ./work/modules` from the repository directory. The launcher adds this ignored module directory to the process module path.
+3. The app registration needs **Office 365 Exchange Online → Delegated permissions → Exchange.Manage** (Manage Exchange configuration), with consent appropriate for the tenant. This is a management permission, not a read-only OAuth scope; this app restricts its implemented operations to Get-Mailbox and Get-InboxRule. Exchange RBAC still determines which mailboxes and commands the operator can access. Do not add Exchange.ManageAsApp or a client secret.
+4. The target needs an accessible Exchange Online mailbox. Entra sign-in API premium licensing is a separate prerequisite.
+
+The collector requests hidden inbox rules, and selected current mailbox forwarding properties. It does not retrieve historical rule changes or resolve forwarding recipients to classify external domains. Results are current snapshots, irrespective of the sign-in time range. Failure for one source does not mean the other source was empty.
+
+Current validation: synthetic analysis and response parsing are tested; a live authenticated Exchange run remains required. Existing imported data is replaced when starting a live investigation; export it first if needed.
+
+References: [Connect-ExchangeOnline](https://learn.microsoft.com/en-us/powershell/module/exchangepowershell/connect-exchangeonline?view=exchange-ps), [Get-InboxRule](https://learn.microsoft.com/en-us/powershell/module/exchangepowershell/get-inboxrule?view=exchange-ps).
+
+### Sign-in indicators
+
+Analysis runs on the complete imported file or collected batch, grouped by UPN. Duplicate event IDs per account do not inflate analysis; raw imported duplicates are retained. In addition to medium/high Entra risk, checks flag successful legacy-client categories, success after at least five invalid-credential (50126) failures within 15 minutes, and consecutive successful events with different reported countries within one hour. Missing fields skip dependent checks. MFA interruptions are not treated as incorrect passwords. VPNs, normal client behavior and user mistakes can produce findings; these thresholds are transparent review heuristics, not compromise verdicts or learned baselines.
+
+Offline imports now start from **Offline Investigation**, which includes download instructions and a local file picker. Coverage and exported summaries include observed dates, record counts and unavailable Entra risk assessments. Complete describes request completion, not guaranteed historical coverage.

@@ -40,6 +40,21 @@ public sealed class TenantSession
         var result = await active.AcquireTokenSilent(Scopes, account).ExecuteAsync(ct);
         return result.AccessToken;
     }
+    public async Task<string> GetExchangeTokenAsync(CancellationToken ct)
+    {
+        var active = client ?? throw new InvalidOperationException("Connect to a tenant first.");
+        string[] scopes = ["https://outlook.office365.com/Exchange.Manage"];
+        AuthenticationResult result;
+        try { result = await active.AcquireTokenSilent(scopes, account).ExecuteAsync(ct); }
+        catch (MsalUiRequiredException)
+        {
+            result = await active.AcquireTokenInteractive(scopes).WithAccount(account)
+                .WithUseEmbeddedWebView(false).ExecuteAsync(ct);
+        }
+        if (result.TenantId != TenantId || result.Account.HomeAccountId.Identifier != account!.HomeAccountId.Identifier)
+            throw new InvalidOperationException("Exchange sign-in must match the connected account and tenant.");
+        return result.AccessToken;
+    }
     public async Task DisconnectAsync()
     {
         var previous = client;

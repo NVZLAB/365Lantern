@@ -10,7 +10,10 @@ public sealed record Coverage(string Source, string Status, int Records, string 
 public sealed record Evidence(string Id, string Source, JsonElement Data);
 public sealed record Investigation(string Tenant, string Account, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
     DateTimeOffset CollectedUtc, bool IsDemo, IReadOnlyList<Finding> Findings, IReadOnlyList<Coverage> Coverage,
-    IReadOnlyList<Evidence> Evidence);
+    IReadOnlyList<Evidence> Evidence)
+{
+    public ImportProvenance? Import { get; init; }
+}
 
 public static class DemoInvestigation
 {
@@ -37,21 +40,6 @@ public static class DemoInvestigation
     }
 }
 
-public static class SignInFindings
-{
-    public static IReadOnlyList<Finding> Analyze(IEnumerable<Evidence> evidence, string account)
-    {
-        var result = new List<Finding>();
-        foreach (var item in evidence)
-        {
-            if (item.Data.TryGetProperty("riskLevelDuringSignIn", out var risk) && risk.GetString() is "high" or "medium")
-                result.Add(new(risk.GetString() == "high" ? "High" : "Medium", "Sign-in flagged by Entra risk", account,
-                    item.Source, "Microsoft Entra reported " + risk.GetString() + " risk for this sign-in. Review the raw event and verify activity with the account owner. This is not a compromise verdict.", item.Id));
-        }
-        return result;
-    }
-}
-
 public static class EvidenceExport
 {
     // Construct the whole archive in memory. The caller owns the single explicit file write.
@@ -61,11 +49,14 @@ public static class EvidenceExport
         var evidenceBytes = JsonSerializer.SerializeToUtf8Bytes(investigation, options);
         static string Safe(string text) => text.Replace("\r", " ").Replace("\n", " ");
         var summary = new StringBuilder("365Lantern — investigation summary\n");
-        summary.AppendLine(investigation.IsDemo ? "SYNTHETIC DEMO DATA — not a real incident" : "LIVE COLLECTION — analyst review required");
+        summary.AppendLine(investigation.IsDemo ? "SYNTHETIC DEMO DATA — not a real incident" : investigation.Import is not null ? "IMPORTED DATA — origin and completeness unverified" : "LIVE COLLECTION — analyst review required");
         summary.AppendLine($"Tenant: {Safe(investigation.Tenant)}\nAccount: {Safe(investigation.Account)}");
-        summary.AppendLine($"Requested period (UTC): {investigation.StartUtc:O} to {investigation.EndUtc:O}\nCollected (UTC): {investigation.CollectedUtc:O}");
+        if (investigation.Import is { } imported) summary.AppendLine($"Original input SHA-256: {imported.Sha256}; bytes: {imported.Bytes}; records: {imported.Records}. Original file is not embedded. Dates below are observed event bounds, not export filters.");
+        summary.AppendLine($"Period (UTC): {investigation.StartUtc:O} to {investigation.EndUtc:O}\nCollected (UTC): {investigation.CollectedUtc:O}");
         summary.AppendLine("\nCollection coverage (Complete means the query finished, not that all historical events exist):");
         foreach (var c in investigation.Coverage) summary.AppendLine($"{Safe(c.Source)}: {c.Status}; {c.Records} records. {Safe(c.Detail)}");
+        summary.AppendLine(InvestigationCoverage.Describe(investigation));
+        summary.AppendLine("\nSign-in diagnostics:\n" + SignInDiagnostics.Create(investigation.Evidence).Summary);
         summary.AppendLine("\nFindings (indicators, not confirmation of compromise):");
         foreach (var f in investigation.Findings) summary.AppendLine($"[{f.Priority}] {Safe(f.Title)}\n{Safe(f.Explanation)}\nEvidence: {Safe(f.EvidenceId)}\n");
         if (investigation.Findings.Count == 0) summary.AppendLine("No configured indicators matched. This does not establish that the account is safe.");

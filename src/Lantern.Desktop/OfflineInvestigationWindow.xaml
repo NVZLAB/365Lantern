@@ -1,0 +1,33 @@
+<Window x:Class="Lantern.Desktop.OfflineInvestigationWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Offline investigation — 365Lantern" Icon="Assets/Lantern.ico" Width="740" Height="700" MinWidth="560" MinHeight="450" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource PageBrush}" FontFamily="Segoe UI" FontSize="14">
+  <Grid Background="{DynamicResource PageBrush}">
+  <Grid Margin="24">
+    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <TextBlock Text="Offline investigation" FontSize="24" FontWeight="SemiBold"/>
+        <TextBlock Text="Download your sign-in logs, then analyze a local JSON file. No upload or app sign-in is required." Style="{StaticResource Muted}" Margin="0,8,0,18"/>
+        <Border Style="{StaticResource Card}"><StackPanel>
+          <TextBlock Text="1. Open entra.microsoft.com in your browser. Sign in as an admin or Reports Reader and confirm the correct tenant." Margin="0,0,0,12"/>
+          <Button Content="Open Microsoft Entra" Click="OpenPortal" HorizontalAlignment="Left" Margin="0,0,0,16"/>
+          <TextBlock Text="2. Go to Entra ID → Monitoring &amp; health → Sign-in logs. Use Download, not Diagnostic settings; no log streaming setup is needed." Margin="0,0,0,12"/>
+          <TextBlock Text="3. Set the User and date filters. Include successful and failed sign-ins." Margin="0,0,0,12"/>
+          <TextBlock Text="4. Select Download → JSON. Download full Interactive sign-ins and, for additional coverage, full Non-interactive sign-ins. Do not select authentication-details-only, audit, application or managed-identity logs for this importer." Margin="0,0,0,12"/>
+          <TextBlock Text="5. Select one downloaded file below and choose Analyze file. This build handles one file at a time; export the results before analyzing another file."/>
+        </StackPanel></Border>
+        <TextBlock Text="Sign-in JSON file" FontWeight="SemiBold"/>
+        <Grid Margin="0,8,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBox x:Name="FileBox" Background="{DynamicResource CardBrush}" Foreground="{DynamicResource InkBrush}" BorderBrush="{DynamicResource LineBrush}" IsReadOnly="True" VerticalContentAlignment="Center" AutomationProperties.Name="Selected sign-in JSON file"/>
+          <Button Grid.Column="1" Content="Browse…" Click="Browse" Margin="8,0,0,0"/>
+        </Grid>
+        <TextBlock Text="All accounts and dates in the file will be analyzed; the main window’s live filters do not apply. A successful import replaces the current investigation. Files stay on your computer; nothing is saved automatically. Limit: 32 MiB / 100,000 records." Style="{StaticResource Muted}"/>
+        <TextBlock x:Name="ErrorLabel" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite"/>
+      </StackPanel>
+    </ScrollViewer>
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+      <Button Content="Cancel" IsCancel="True"/>
+      <Button x:Name="AnalyzeButton" Content="Analyze file" IsDefault="True" IsEnabled="False" Click="Analyze"/>
+    </StackPanel>
+  </Grid>
+  </Grid>
+</Window>
