@@ -16,12 +16,14 @@
           <TextBlock Text="Local session · No telemetry" FontSize="11" Margin="0,16,0,0" Style="{StaticResource Muted}"/>
         </StackPanel>
         <StackPanel>
-          <Button Content="Overview" Tag="Overview" Style="{StaticResource Nav}" Click="Navigate"/>
-          <Button Content="Sign-ins" Tag="Sign-ins" Style="{StaticResource Nav}" Click="Navigate"/>
-          <Button Content="Mailbox rules" Tag="Mailbox rules" Style="{StaticResource Nav}" Click="Navigate"/>
-          <Button Content="Evidence" Tag="Evidence" Style="{StaticResource Nav}" Click="Navigate"/>
-          <Button Content="Response" Tag="Response" Style="{StaticResource Nav}" Click="Navigate"/>
           <Button Content="Connect tenant" Tag="Connect tenant" Style="{StaticResource Nav}" Click="Navigate"/>
+          <Button Content="Investigate" Tag="Investigate" Style="{StaticResource Nav}" Click="Navigate"/>
+
+
+
+          <Button Content="Findings" Tag="Findings" Style="{StaticResource Nav}" Click="Navigate"/>
+          <Button Content="Response" Tag="Response" Style="{StaticResource Nav}" Click="Navigate"/>
+
         </StackPanel>
       </DockPanel>
     </Border>
@@ -35,23 +37,46 @@
         <StackPanel>
           <Border x:Name="ConnectionPanel" Style="{StaticResource Card}" Visibility="Collapsed">
             <StackPanel>
-              <TextBlock Text="Connect your test tenant" FontSize="20" FontWeight="SemiBold"/>
-              <TextBlock Text="Use a public-client app registration with a localhost desktop redirect and delegated AuditLog.Read.All permission. Investigation reads sign-ins and current Exchange rules/forwarding. Exchange also requires delegated Exchange.Manage consent and the Exchange Online PowerShell module." Style="{StaticResource Muted}" Margin="0,10,0,18"/>
-              <TextBlock Text="Application (client) ID"/><TextBox x:Name="ClientIdBox" Margin="0,6,0,14" AutomationProperties.Name="Application client ID"/>
+              <TextBlock Text="Connect your tenant" FontSize="20" FontWeight="SemiBold"/>
+              <TextBlock Text="Use Microsoft’s PowerShell sign-in. No 365Lantern app registration is required. Graph and Exchange may each prompt for sign-in or consent; use the same administrator account." Style="{StaticResource Muted}" Margin="0,10,0,18"/>
+              <Button Content="Look up tenant ID in browser…" Click="TenantLookup" HorizontalAlignment="Left" Margin="0,0,0,12"/>
               <TextBlock Text="Directory (tenant) ID"/><TextBox x:Name="TenantIdBox" Margin="0,6,0,14" AutomationProperties.Name="Directory tenant ID"/>
-              <TextBlock Text="IDs and tokens stay in this app's memory. Your browser manages its own sign-in cookies. Disconnect clears the app session, not browser sign-in." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
+              <CheckBox x:Name="IncludeGrants" Content="Include application-grant inventory (requests optional Directory.Read.All consent)" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
+              <CheckBox x:Name="AdvancedAuthentication" Content="Advanced: use my own app registration" Checked="AuthenticationModeChanged" Unchecked="AuthenticationModeChanged" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
+              <StackPanel x:Name="ClientRegistrationPanel" Visibility="Collapsed"><TextBlock Text="Application (client) ID"/><TextBox x:Name="ClientIdBox" Margin="0,6,0,14" AutomationProperties.Name="Application client ID"/><TextBlock Text="Public client with localhost redirect; delegated AuditLog.Read.All, User.Read.All, Device.Read.All and Exchange.Manage permissions." Style="{StaticResource Muted}" Margin="0,0,0,14"/></StackPanel>
+              <TextBlock Text="Requires PowerShell 7, Microsoft.Graph.Authentication 2.36.1+ and ExchangeOnlineManagement 3.7+. Graph uses a process-scoped session. Clear session closes the helper; browser/Windows sign-in state, consent grants and Microsoft audit records may remain." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
               <Button x:Name="ConnectButton" Content="Sign in with Microsoft" Click="Connect" HorizontalAlignment="Left"/>
             </StackPanel>
           </Border>
           <Border x:Name="ResponsePanel" Style="{StaticResource Card}" Visibility="Collapsed"><StackPanel><TextBlock Text="Response actions are not enabled in this build" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="This first slice validates investigation and evidence handling. No password resets, session revocation, rule changes, or other tenant writes are implemented." Margin="0,12,0,0" Style="{StaticResource Muted}"/></StackPanel></Border>
-          <StackPanel x:Name="InvestigationPanel">
+          <StackPanel x:Name="InvestigationPanel" Visibility="Collapsed">
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions><StackPanel Margin="0,0,16,0"><TextBlock Text="Account to investigate" Style="{StaticResource Muted}"/><TextBox x:Name="AccountBox" Margin="0,6,0,0" AutomationProperties.Name="Account to investigate" ToolTip="Enter the exact user principal name"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="Time range" Style="{StaticResource Muted}"/><ComboBox x:Name="DaysPicker" SelectedIndex="1" Margin="0,6,0,0" AutomationProperties.Name="Time range"><ComboBoxItem Content="Last 1 day" Tag="1"/><ComboBoxItem Content="Last 7 days" Tag="7"/><ComboBoxItem Content="Last 30 days" Tag="30"/></ComboBox></StackPanel></Grid>
-                <WrapPanel Margin="0,16,0,0"><Button x:Name="CollectButton" Content="Investigate account" IsEnabled="False" Click="Collect"/><Button x:Name="OfflineButton" Content="Offline Investigation" Click="ImportJson"/><Button x:Name="CancelButton" Content="Cancel" IsEnabled="False" Click="Cancel"/><Button x:Name="ExportButton" Content="Preview export…" IsEnabled="False" Click="Export"/></WrapPanel>
+                <CheckBox x:Name="TenantWide" Content="Tenant-wide investigation (all directory accounts; up to 1,000 per run)" Checked="ScopeChanged" Unchecked="ScopeChanged" Foreground="{DynamicResource InkBrush}" Margin="0,12,0,0"/><WrapPanel Margin="0,16,0,0"><Button x:Name="CollectButton" Content="Investigate account" IsEnabled="False" Click="Collect"/><Button x:Name="OfflineButton" Content="Offline Investigation" Click="ImportJson"/><Button x:Name="CancelButton" Content="Cancel" IsEnabled="False" Click="Cancel"/></WrapPanel>
               </StackPanel>
             </Border>
+          </StackPanel>
+          <StackPanel x:Name="ResultsPanel" Visibility="Collapsed">
+            <WrapPanel><Button x:Name="RelatedButton" Content="Related accounts…" Click="Related" IsEnabled="False" Margin="0,0,8,12"/><Button x:Name="ExportFindingsButton" Content="Export Findings…" IsEnabled="False" Click="ExportFindings" HorizontalAlignment="Left" Margin="0,0,0,12"/></WrapPanel>
+            <TextBlock Text="ZIP includes JSON/CSV suspicious behavior, findings and timeline, raw evidence, summary and integrity hashes. Contains sensitive case data." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
             <Border Style="{StaticResource Card}"><StackPanel><TextBlock x:Name="SummaryLabel" Text="Ready when you are" FontSize="20" FontWeight="SemiBold"/><TextBlock x:Name="ScopeLabel" Text="Connect a tenant or start an offline investigation." Margin="0,8,0,0" Style="{StaticResource Muted}"/></StackPanel></Border>
+            <Border Style="{StaticResource Card}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2"><StackPanel><TextBlock Text="Suspicious Behavior" FontSize="18" FontWeight="SemiBold"/><TextBlock x:Name="SuspiciousSummary" Text="Run an investigation to review suspicious indicators." Style="{StaticResource Muted}" Margin="0,6,0,14"/>
+              <ListBox x:Name="FindingsList" MaxHeight="240" SelectionChanged="FindingSelected" AutomationProperties.Name="Suspicious behavior"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="5,7"><TextBlock><Run Text="{Binding Priority}" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold"/><Run Text="  ·  "/><Run Text="{Binding Title}" FontWeight="SemiBold"/></TextBlock><TextBlock Text="{Binding Account}" FontSize="12" Style="{StaticResource Muted}"/><TextBlock Text="{Binding Basis}" FontSize="12" Style="{StaticResource Muted}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+              <TextBlock x:Name="FindingDetail" Margin="0,14,0,0" Style="{StaticResource Muted}"/>
+            </StackPanel></Border>
+            <Border Style="{StaticResource Card}"><StackPanel>
+              <TextBlock Text="Account activity timeline" FontSize="20" FontWeight="SemiBold"/>
+              <TextBlock Text="Recorded activity and current configuration, ordered in UTC. Select a row for original evidence and exact message-ID links. Message delivery does not prove a link click or compromise." Style="{StaticResource Muted}" Margin="0,8,0,12"/>
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
+                <ComboBox x:Name="TimelineAccount" SelectionChanged="TimelineFilterChanged" AutomationProperties.Name="Timeline account" Margin="0,0,12,0"/>
+                <ComboBox x:Name="TimelineCategory" Grid.Column="1" SelectedIndex="0" SelectionChanged="TimelineFilterChanged" AutomationProperties.Name="Timeline category"><ComboBoxItem Content="All activity"/><ComboBoxItem Content="Authentication"/><ComboBoxItem Content="Mail flow"/><ComboBoxItem Content="Audit"/><ComboBoxItem Content="Identity"/><ComboBoxItem Content="Snapshot"/></ComboBox>
+              </Grid>
+              <TextBlock x:Name="TimelineSummary" Style="{StaticResource Muted}" Margin="0,10,0,12"/>
+              <DataGrid x:Name="TimelineEvents" IsReadOnly="True" AutoGenerateColumns="False" MaxHeight="360" SelectionChanged="TimelineSelected" AutomationProperties.Name="Account timeline">
+                <DataGrid.Columns><DataGridTextColumn Header="Time" Binding="{Binding Time}"/><DataGridTextColumn Header="Account" Binding="{Binding Account}"/><DataGridTextColumn Header="Type" Binding="{Binding Category}"/><DataGridTextColumn Header="Activity" Binding="{Binding Activity}" Width="350"/><DataGridTextColumn Header="Outcome" Binding="{Binding Outcome}"/><DataGridTextColumn Header="IP" Binding="{Binding IP}"/></DataGrid.Columns>
+              </DataGrid>
+            </StackPanel></Border>
             <Border x:Name="DiagnosticsPanel" Style="{StaticResource Card}" Visibility="Collapsed"><StackPanel>
               <TextBlock Text="Sign-in diagnostics" FontSize="20" FontWeight="SemiBold"/>
               <TextBlock x:Name="DiagnosticsSummary" Margin="0,10,0,12"/>
@@ -66,9 +91,14 @@
               </DataGrid>
             </StackPanel></Border>
             <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Collection coverage" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/><TextBlock x:Name="LimitsLabel" Style="{StaticResource Muted}" Margin="0,0,0,16"/><ItemsControl x:Name="CoverageList"><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Source}" FontWeight="SemiBold"/><StackPanel Grid.Column="1"><TextBlock Text="{Binding Status}"/><TextBlock Text="{Binding Records, StringFormat={}{0} records}" Style="{StaticResource Muted}"/></StackPanel><TextBlock Grid.Column="2" Text="{Binding Detail}" Style="{StaticResource Muted}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
-            <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Findings to review" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Indicators require analyst review. Select one to inspect its supporting evidence." Style="{StaticResource Muted}" Margin="0,6,0,14"/>
-              <ListBox x:Name="FindingsList" MaxHeight="240" SelectionChanged="FindingSelected" AutomationProperties.Name="Findings"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="5,7"><TextBlock><Run Text="{Binding Priority}"/><Run Text="  ·  "/><Run Text="{Binding Title}" FontWeight="SemiBold"/></TextBlock><TextBlock Text="{Binding Source}" FontSize="12" Style="{StaticResource Muted}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
-              <TextBlock x:Name="FindingDetail" Margin="0,14,0,0" Style="{StaticResource Muted}"/>
+
+            <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Account MFA registration and registered devices" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Current registration report, not proof MFA was enforced. Missing report entries are unknown. Registered devices are not necessarily devices used in these sign-ins. See collection coverage for failures." Style="{StaticResource Muted}" Margin="0,8,0,12"/>
+              <DataGrid x:Name="AccountDetails" IsReadOnly="True" AutoGenerateColumns="False" MaxHeight="300"><DataGrid.Columns><DataGridTextColumn Header="Account" Binding="{Binding Account}"/><DataGridTextColumn Header="Methods registered" Binding="{Binding Methods}"/><DataGridTextColumn Header="MFA registered" Binding="{Binding MfaRegistered}"/><DataGridTextColumn Header="Devices" Binding="{Binding Devices}"/><DataGridTextColumn Header="Device query" Binding="{Binding DeviceStatus}"/></DataGrid.Columns></DataGrid>
+            </StackPanel></Border>
+            <Border Style="{StaticResource Card}"><StackPanel>
+              <TextBlock Text="Persistence and delegated access" FontSize="18" FontWeight="SemiBold"/>
+              <TextBlock Text="Current Full Access, Send As, Send on Behalf and OAuth delegated grants. Select an entry for original evidence. These are access configurations, not proof of compromise; effective access, application-only grants and group expansion are not evaluated. Review coverage for denied or skipped queries." Style="{StaticResource Muted}" Margin="0,8,0,12"/>
+              <DataGrid x:Name="PersistenceList" IsReadOnly="True" AutoGenerateColumns="False" MaxHeight="300" SelectionChanged="PersistenceSelected" AutomationProperties.Name="Persistence snapshots"><DataGrid.Columns><DataGridTextColumn Header="Account" Binding="{Binding Account}"/><DataGridTextColumn Header="Source" Binding="{Binding Source}"/><DataGridTextColumn Header="Trustee / client object ID" Binding="{Binding Principal}"/><DataGridTextColumn Header="Access" Binding="{Binding Access}" Width="280"/><DataGridTextColumn Header="State" Binding="{Binding State}"/></DataGrid.Columns></DataGrid>
             </StackPanel></Border>
             <Border x:Name="RawPanel" Style="{StaticResource Card}" Visibility="Collapsed"><StackPanel><TextBlock Text="Raw evidence · memory only" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10"/><TextBox x:Name="RawEvidence" IsReadOnly="True" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxHeight="300" AutomationProperties.Name="Raw evidence"/></StackPanel></Border>
           </StackPanel>

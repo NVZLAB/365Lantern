@@ -12,7 +12,7 @@ public static class SignInFindings
     public static IReadOnlyList<Finding> Analyze(IEnumerable<Evidence> evidence, string account)
     {
         var result = new List<Finding>();
-        var rows = evidence.Where(e => e.Source == "Entra sign-ins")
+        var rows = evidence.Where(e => SignInTypes.IsSignIn(e))
             .DistinctBy(e => (Text(e.Data, "userPrincipalName").ToLowerInvariant(), Text(e.Data, "id") is { Length: > 0 } id ? id : e.Id)).ToArray();
         foreach (var group in rows.GroupBy(e => Text(e.Data, "userPrincipalName") is { Length: > 0 } upn ? upn : account, StringComparer.OrdinalIgnoreCase))
         {
@@ -25,7 +25,7 @@ public static class SignInFindings
                 if (Status(item.Data) == 0 && client is "Exchange ActiveSync" or "IMAP" or "IMAP4" or "POP" or "POP3" or "SMTP" or "Authenticated SMTP" or "Other clients")
                     Add(item, "Medium", "Successful sign-in through a legacy client category", $"Client category: {client}. Verify the client and authentication details; the category alone does not prove basic authentication.");
             }
-            var dated = group.Select(e => (Event: e, Time: DateTimeOffset.TryParse(Text(e.Data, "createdDateTime"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var time) ? (DateTimeOffset?)time : null))
+            var dated = group.Where(e => !SignInTypes.IsBackground(e)).Select(e => (Event: e, Time: DateTimeOffset.TryParse(Text(e.Data, "createdDateTime"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var time) ? (DateTimeOffset?)time : null))
                 .Where(x => x.Time.HasValue).OrderBy(x => x.Time).ToArray();
             var failures = new Queue<(Evidence Event, DateTimeOffset Time)>();
             (Evidence Event, DateTimeOffset Time)? previousSuccess = null;

@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/Lantern.ico" />
+    <None Update="ActivityCommands.ps1" CopyToOutputDirectory="PreserveNewest" /><None Update="ModuleSession.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Collect-Exchange.ps1" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../Lantern.Core/Lantern.Core.csproj" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />

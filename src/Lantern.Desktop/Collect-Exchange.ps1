@@ -1,3 +1,4 @@
+. "$PSScriptRoot/ActivityCommands.ps1"
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $WarningPreference = 'SilentlyContinue'
@@ -6,8 +7,9 @@ try {
     Import-Module ExchangeOnlineManagement -MinimumVersion 3.7.0 -ErrorAction Stop
     if ([Console]::ReadLine() -eq 'preflight') { [Console]::WriteLine('ready'); exit 0 }
     $request = [Console]::ReadLine() | ConvertFrom-Json
-    Connect-ExchangeOnline -AccessToken $request.token -UserPrincipalName $request.operator -ShowBanner:$false -ShowProgress:$false -CommandName Get-Mailbox,Get-InboxRule -EnableErrorReporting:$false -ErrorAction Stop | Out-Null
+    Connect-ExchangeOnline -AccessToken $request.token -UserPrincipalName $request.operator -ShowBanner:$false -ShowProgress:$false -CommandName Get-Mailbox,Get-InboxRule,Get-MessageTraceV2,Search-UnifiedAuditLog -EnableErrorReporting:$false -ErrorAction Stop | Out-Null
     $request.token = $null
+    if ($request.activity) { [Console]::WriteLine((Invoke-LanternActivity $request.activity | ConvertTo-Json -Depth 30 -Compress)); exit 0 }
     $rules = @(); $mailbox = $null; $rulesOk = $false; $mailboxOk = $false
     try {
         $mailbox = Get-Mailbox -Identity $request.account -ErrorAction Stop | Select-Object UserPrincipalName,PrimarySmtpAddress,ForwardingAddress,ForwardingSmtpAddress,DeliverToMailboxAndForward

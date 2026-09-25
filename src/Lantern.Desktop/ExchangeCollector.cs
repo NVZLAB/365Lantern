@@ -8,11 +8,21 @@ namespace Lantern.Desktop;
 
 public sealed class ExchangeCollector
 {
+    public async Task<JsonElement> ActivityAsync(TenantSession session, object activity, CancellationToken ct)
+    {
+        if (session.Modules is { } modules) return await modules.RequestAsync(activity, ct);
+        var token = await session.GetExchangeTokenAsync(ct);
+        var request = "collect\n" + JsonSerializer.Serialize(new { token, @operator = session.Operator, activity }) + "\n";
+        using var json = JsonDocument.Parse(await RunAsync(request, ct));
+        return json.RootElement.Clone();
+    }
     private static string PowerShellPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
     public async Task<ExchangeResult> CollectAsync(TenantSession session, string account, CancellationToken ct)
     {
         try
         {
+            if (session.Modules is { } modules)
+                return ExchangeEvidence.Parse((await modules.RequestAsync(new { action = "exchange", account }, ct)).GetRawText(), account);
             bool ready = false;
             try { ready = File.Exists(PowerShellPath) && (await RunAsync("preflight\n", ct)).Trim() == "ready"; }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }

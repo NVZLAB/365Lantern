@@ -19,7 +19,7 @@ public sealed record SignInDiagnostics(IReadOnlyList<DiagnosticEvent> Events, in
         var events = new List<DiagnosticEvent>();
         var seen = new HashSet<(string, string)>();
         int duplicates = 0;
-        foreach (var row in evidence.Where(e => e.Source == "Entra sign-ins"))
+        foreach (var row in evidence.Where(e => SignInTypes.IsSignIn(e)))
         {
             string Text(string name) => SignInFindings.Text(row.Data, name).Trim();
             var account = Text("userPrincipalName"); var id = Text("id");

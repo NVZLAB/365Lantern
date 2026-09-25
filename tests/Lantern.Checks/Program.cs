@@ -11,7 +11,7 @@ var demo = DemoInvestigation.Run(now, 7);
 Check(demo.IsDemo && demo.Findings.Count == 2, "synthetic fixture is labeled and has two findings");
 using (var zip = new ZipArchive(new MemoryStream(EvidenceExport.Create(demo))))
 {
-    Check(zip.Entries.Count == 3, "export contains only evidence, summary and manifest");
+    Check(zip.Entries.Count == 9 && zip.GetEntry("findings.json") is not null && zip.GetEntry("findings.csv") is not null, "export automatically includes JSON and CSV findings with evidence and manifest");
     using var manifest = JsonDocument.Parse(zip.GetEntry("manifest.json")!.Open());
     foreach (var file in manifest.RootElement.GetProperty("files").EnumerateArray())
     {
@@ -125,6 +125,66 @@ Check(diagnostics.Countries.Single(g => g.Value == "US").Events == 2 && diagnost
 Check(diagnostics.Events.Single(e => e.EvidenceId == "c").Outcome == "Unknown" && diagnostics.IPs.Any(g => g.Value == "Unknown"), "missing outcomes and invalid IPs are explicitly unknown");
 Check(diagnostics.IPs.Single(g => g.Value == "192.0.2.1").FirstUtc == "2026-09-10 10:00:00", "group first-seen uses observed UTC date");
 Check(SignInDiagnostics.Create([]).Summary.Contains("0 distinct events"), "empty diagnostics are safe");
+if (OperatingSystem.IsWindows())
+{
+    var previousModulePath = Environment.GetEnvironmentVariable("PSModulePath");
+    Environment.SetEnvironmentVariable("PSModulePath", Path.Combine(AppContext.BaseDirectory, "fixtures", "modules"));
+    var moduleSession = new Lantern.Desktop.ModuleSession();
+    try
+    {
+        var identity = await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", default);
+        Check(identity.GetProperty("account").GetString() == "admin@example.com", "module session connects with process-scoped delegated authentication");
+        using var moduleHttp = new HttpClient(moduleSession, false);
+        var moduleResult = await new GraphCollector(moduleHttp, _ => Task.FromResult("module-session")).CollectAsync("test", "alex@example.com", now.AddDays(-1), now, default);
+        Check(moduleResult.Evidence.Count == 1, "existing Graph collector reads through authenticated module without receiving tokens");
+        var exo = await moduleSession.RequestAsync(new { action = "exchange", account = "alex@example.com" }, default);
+        Check(exo.GetProperty("mailboxOk").GetBoolean() && exo.GetProperty("rulesOk").GetBoolean(), "module Exchange collection checks tenant and operator before reads");
+        var moduleActivity = await new MailActivityCollector(moduleSession.RequestAsync).CollectAsync("alex@example.com", now.AddDays(-1), now, default);
+        Check(moduleActivity.Coverage.All(c => c.Status == "Complete"), "fixed PowerShell activity commands dispatch traces and audits through owned helper");
+        var modulePersistence = await new PersistenceCollector(moduleSession.RequestAsync).CollectAsync("alex@example.com", default);
+        Check(modulePersistence.Coverage.All(c => c.Status == "Complete") && modulePersistence.Evidence.Count == 2, "fixed helper reads Full Access, Send As and Send on Behalf independently");
+        var moduleMessage = await new RelatedMessageCollector(moduleSession.RequestAsync).CollectAsync(new("Message", "<test@example.com>"), now.AddDays(-1), now, default);
+        Check(moduleMessage.Coverage.Single().Status == "Complete", "fixed helper supports exact message-ID tenant trace query");
+        await moduleSession.CloseAsync();
+        Check(!moduleSession.Connected, "disconnect terminates the owned helper");
+        await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", default, true);
+        Check(moduleSession.Connected, "optional delegated grant scope connects through owned helper");
+        await moduleSession.CloseAsync();
+        await moduleSession.ConnectAsync("22222222-2222-2222-2222-222222222222", default);
+        var mismatch = await moduleSession.RequestAsync(new { action = "exchange", account = "alex@example.com" }, default);
+        Check(!mismatch.GetProperty("mailboxOk").GetBoolean() && !mismatch.GetProperty("rulesOk").GetBoolean(), "Exchange tenant mismatch returns no data while allowing other sources");
+        await moduleSession.CloseAsync();
+        using var stop = new CancellationTokenSource(); stop.Cancel();
+        try { await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", stop.Token); throw new Exception("Cancellation ignored"); }
+        catch (OperationCanceledException) { Check(!moduleSession.Connected, "canceled module authentication releases helper"); }
+    }
+    finally { await moduleSession.CloseAsync(); Environment.SetEnvironmentVariable("PSModulePath", previousModulePath); }
+}
+Check(!AccountInventory.Allowed(new Uri("https://graph.microsoft.com/v1.0/users/11111111-1111-1111-1111-111111111111/messages")), "inventory allowlist excludes mail and unrelated user endpoints");
+using var inventoryHttp = new HttpClient(new ScriptedHandler([
+ new(HttpStatusCode.OK) { Content = new StringContent("""{"value":[{"id":"11111111-1111-1111-1111-111111111111","userPrincipalName":"alex@example.com"}]}""") },
+ new(HttpStatusCode.OK) { Content = new StringContent("""{"value":[{"id":"11111111-1111-1111-1111-111111111111","methodsRegistered":["microsoftAuthenticatorPush"],"isMfaRegistered":true}]}""") },
+ new(HttpStatusCode.OK) { Content = new StringContent("""{"value":[{"id":"device-one","displayName":"Test laptop"}]}""") }
+]));
+var inventory = await new AccountInventory(inventoryHttp, _ => Task.FromResult("synthetic-token")).CollectAsync(null, default);
+Check(inventory.Accounts.Single().Methods == "microsoftAuthenticatorPush" && inventory.Accounts.Single().Devices == "Test laptop", "MFA report and device inventory associate with directory account");
+Check(inventory.Coverage.All(c => c.Status == "Complete") && inventory.Evidence.Count == 2, "inventory evidence is retained with explicit source coverage");
+using var missingInventoryHttp = new HttpClient(new ScriptedHandler([
+ new(HttpStatusCode.OK) { Content = new StringContent("""{"value":[{"id":"11111111-1111-1111-1111-111111111111","userPrincipalName":"alex@example.com"}]}""") },
+ new(HttpStatusCode.Forbidden), new(HttpStatusCode.Forbidden)
+]));
+var missingInventory = await new AccountInventory(missingInventoryHttp, _ => Task.FromResult("synthetic-token")).CollectAsync("alex@example.com", default);
+Check(missingInventory.Accounts.Single().MfaRegistered == "Unknown" && missingInventory.Accounts.Single().DeviceStatus == "Failed", "denied inventory never means no MFA or no devices");
+using var tenantHttp = new HttpClient(new ScriptedHandler([new(HttpStatusCode.OK) { Content = new StringContent("{\"value\":[]}") }]));
+var tenantScan = await new GraphCollector(tenantHttp, _ => Task.FromResult("synthetic-token")).CollectAsync("test", "", now.AddDays(-1), now, default, true);
+Check(tenantScan.Account == "Entire tenant", "tenant scope is explicit and accepts no account filter");
+var csv = FindingsExport.Csv(demo with { Findings = [new("High", "=DANGEROUS()", "alex@example.com", "test", "comma, quote\" and newline\n", "one")] });
+Check(csv.Contains("\"'=DANGEROUS()\"") && csv.Contains("quote\"\""), "CSV neutralizes formulas and escapes special characters");
+using var exportedFindings = JsonDocument.Parse(FindingsExport.Json(demo));
+Check(exportedFindings.RootElement.GetProperty("Findings").GetArrayLength() == 2 && exportedFindings.RootElement.TryGetProperty("Coverage", out _), "JSON findings export includes scope and coverage");
+await ActivityChecks.Run(Check);
+SuspiciousChecks.Run(Check);
+await PersistenceChecks.Run(Check);
 Console.WriteLine($"{passed} checks passed.");
 
 sealed class ScriptedHandler(IEnumerable<HttpResponseMessage> responses) : HttpMessageHandler
