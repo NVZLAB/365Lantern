@@ -14,6 +14,8 @@
           <TextBlock Text="Appearance" Style="{StaticResource Muted}" Margin="0,0,0,6"/>
           <ComboBox x:Name="ThemePicker" SelectedIndex="0" SelectionChanged="ThemeChanged" AutomationProperties.Name="Appearance"><ComboBoxItem Content="System"/><ComboBoxItem Content="Light"/><ComboBoxItem Content="Dark"/></ComboBox>
           <TextBlock Text="Local session · No telemetry" FontSize="11" Margin="0,16,0,0" Style="{StaticResource Muted}"/>
+          <TextBlock x:Name="VersionLabel" FontSize="11" Margin="0,6,0,0" Style="{StaticResource Muted}"/>
+          <Button x:Name="UpdateButton" Content="Check for updates…" Click="CheckUpdates" Margin="0,10,0,0" ToolTip="Contacts GitHub only when clicked. Does not send tenant data."/>
         </StackPanel>
         <StackPanel>
           <Button Content="Connect tenant" Tag="Connect tenant" Style="{StaticResource Nav}" Click="Navigate"/>
@@ -44,7 +46,7 @@
               <CheckBox x:Name="IncludeGrants" Content="Include application-grant inventory (requests optional Directory.Read.All consent)" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
               <CheckBox x:Name="AdvancedAuthentication" Content="Advanced: use my own app registration" Checked="AuthenticationModeChanged" Unchecked="AuthenticationModeChanged" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
               <StackPanel x:Name="ClientRegistrationPanel" Visibility="Collapsed"><TextBlock Text="Application (client) ID"/><TextBox x:Name="ClientIdBox" Margin="0,6,0,14" AutomationProperties.Name="Application client ID"/><TextBlock Text="Public client with localhost redirect; delegated AuditLog.Read.All, User.Read.All, Device.Read.All and Exchange.Manage permissions." Style="{StaticResource Muted}" Margin="0,0,0,14"/></StackPanel>
-              <TextBlock Text="Requires PowerShell 7, Microsoft.Graph.Authentication 2.36.1+ and ExchangeOnlineManagement 3.7+. Graph uses a process-scoped session. Clear session closes the helper; browser/Windows sign-in state, consent grants and Microsoft audit records may remain." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
+              <TextBlock Text="Portable packages include PowerShell and Microsoft modules. Source builds need PowerShell 7, Microsoft.Graph.Authentication 2.36.1+ and ExchangeOnlineManagement 3.7+. Graph uses a process-scoped session. Clear session closes the helper; browser/Windows sign-in state, consent grants and Microsoft audit records may remain." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
               <Button x:Name="ConnectButton" Content="Sign in with Microsoft" Click="Connect" HorizontalAlignment="Left"/>
             </StackPanel>
           </Border>
@@ -56,6 +58,7 @@
                 <CheckBox x:Name="TenantWide" Content="Tenant-wide investigation (all directory accounts; up to 1,000 per run)" Checked="ScopeChanged" Unchecked="ScopeChanged" Foreground="{DynamicResource InkBrush}" Margin="0,12,0,0"/><WrapPanel Margin="0,16,0,0"><Button x:Name="CollectButton" Content="Investigate account" IsEnabled="False" Click="Collect"/><Button x:Name="OfflineButton" Content="Offline Investigation" Click="ImportJson"/><Button x:Name="CancelButton" Content="Cancel" IsEnabled="False" Click="Cancel"/></WrapPanel>
               </StackPanel>
             </Border>
+            <local:CollectionLantern xmlns:local="clr-namespace:Lantern.Desktop" x:Name="CollectionAnimation" Visibility="Collapsed"/>
           </StackPanel>
           <StackPanel x:Name="ResultsPanel" Visibility="Collapsed">
             <WrapPanel><Button x:Name="RelatedButton" Content="Related accounts…" Click="Related" IsEnabled="False" Margin="0,0,8,12"/><Button x:Name="ExportFindingsButton" Content="Export Findings…" IsEnabled="False" Click="ExportFindings" HorizontalAlignment="Left" Margin="0,0,0,12"/></WrapPanel>
@@ -78,8 +81,26 @@
               </DataGrid>
             </StackPanel></Border>
             <Border x:Name="DiagnosticsPanel" Style="{StaticResource Card}" Visibility="Collapsed"><StackPanel>
+              <StackPanel.Resources>
+                <DataTemplate x:Key="ObservedLocation">
+                  <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="12,8" Margin="0,0,8,8">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Value}" FontWeight="SemiBold"/>
+                      <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0"><Run Text="{Binding Events}"/><Run Text=" events · "/><Run Text="{Binding Successful}"/><Run Text=" successful · "/><Run Text="{Binding NonSuccess}"/><Run Text=" non-success · "/><Run Text="{Binding Unknown}"/><Run Text=" unknown outcome"/></TextBlock>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+                <Style x:Key="ObservedValues" TargetType="ItemsControl">
+                  <Setter Property="ItemTemplate" Value="{StaticResource ObservedLocation}"/>
+                  <Setter Property="ItemsPanel"><Setter.Value><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></Setter.Value></Setter>
+                </Style>
+              </StackPanel.Resources>
               <TextBlock Text="Sign-in diagnostics" FontSize="20" FontWeight="SemiBold"/>
               <TextBlock x:Name="DiagnosticsSummary" Margin="0,10,0,12"/>
+              <Expander Header="Observed IP addresses" IsExpanded="True" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,8"><ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="ObservedIPs" Style="{StaticResource ObservedValues}" Margin="0,8,0,0"/></ScrollViewer></Expander>
+              <Expander Header="Observed countries / territories" IsExpanded="True" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,8"><ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="ObservedCountries" Style="{StaticResource ObservedValues}" Margin="0,8,0,0"/></ScrollViewer></Expander>
+              <Expander Header="Observed states / regions" IsExpanded="True" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,8"><ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="ObservedRegions" Style="{StaticResource ObservedValues}" Margin="0,8,0,0"/></ScrollViewer></Expander>
+              <TextBlock Text="Locations are reported by Microsoft from IP data; VPNs and proxies can affect accuracy. Unknown entries remain visible. Use the breakdown below to inspect matching sign-ins." Style="{StaticResource Muted}" Margin="0,0,0,8"/>
               <TextBlock Text="Geography comes from the supplied sign-in records; VPNs and proxies can change reported locations. Non-success includes interruptions and denied attempts. Counts describe this evidence, not a known-good baseline." Style="{StaticResource Muted}"/>
               <ComboBox x:Name="DiagnosticView" SelectedIndex="0" SelectionChanged="DiagnosticViewChanged" Margin="0,12,0,8" AutomationProperties.Name="Diagnostic breakdown"><ComboBoxItem Content="IP addresses"/><ComboBoxItem Content="Countries / territories"/><ComboBoxItem Content="States / regions"/><ComboBoxItem Content="Applications"/></ComboBox>
               <DataGrid x:Name="DiagnosticGroups" IsReadOnly="True" AutoGenerateColumns="False" MaxHeight="200" SelectionChanged="DiagnosticGroupSelected" AutomationProperties.Name="Diagnostic groups">

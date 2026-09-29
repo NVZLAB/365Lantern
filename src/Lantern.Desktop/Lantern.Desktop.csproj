@@ -5,7 +5,6 @@
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Assets/Lantern.ico</ApplicationIcon>
     <AssemblyName>365Lantern</AssemblyName>
-    <Version>0.1.0</Version>
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
   <ItemGroup>

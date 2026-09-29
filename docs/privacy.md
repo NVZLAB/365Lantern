@@ -1,5 +1,16 @@
 # Privacy boundaries
 
+The optional **Check for updates** button sends an unauthenticated HTTPS request to
+the public GitHub Releases API for NVZLAB/365Lantern. Only a product/version User-Agent
+and standard request headers are sent; no tenant data, tokens or investigation state
+are attached. GitHub receives the connection's IP address. No startup/background update
+requests occur. Opening the release page uses the operator's browser and its own state.
+
+Portable packages carry .NET, PowerShell and Microsoft modules beside the EXE. The app
+prefers those dependencies and limits the helper's module search path to bundled modules.
+There is no application installer or runtime dependency download. Microsoft modules,
+browser authentication and OS logging retain the external-footprint boundaries below.
+
 365Lantern intentionally has no database, telemetry client, background synchronization, persistent token-cache serializer, app-managed diagnostic files, or tenant configuration file. Application code retains investigation objects and authentication state in process memory. It does not promise forensic erasure: Windows paging, process dumps, endpoint tools and browser state are outside this boundary.
 
 The only investigation file write is a user-confirmed evidence export. The archive is assembled in memory, then written to the selected file. Export can contain names, account identifiers, IPs and raw Microsoft event properties. There is no automatic redaction or encryption in this first slice. A destination may be network-backed or cloud-synced at the OS level; the operator chooses where evidence belongs. The app itself does not upload exports.
@@ -16,7 +27,7 @@ Exchange preview uses a separate, noninteractive PowerShell process with profile
 
 Default sign-in does not create a Lantern application registration. It uses Microsoft.Graph.Authentication with delegated AuditLog.Read.All, User.Read.All and Device.Read.All and ContextScope Process in an owned PowerShell helper. Directory.Read.All is requested only when the optional application-grant inventory checkbox is selected before connection. Graph tokens remain inside the module; the desktop forwards allowlisted read requests and receives evidence only. The helper uses a hidden console for Windows broker compatibility and does not change persistent Graph/WAM options. Windows broker and browser sign-in state can persist outside the process. Process scope does not promise removal of operating-system authentication state.
 
-Exchange uses its normal interactive connection with WAM disabled for that connection, verifies the tenant and operator against Graph before reading, and disconnects after the snapshot. Clear session closes helper input so module disconnect runs; after a two-second grace period the app terminates the helper if necessary. Cancellation and protocol failures also close the helper. No tenant consent grants or enterprise application entries are automatically removed. Tenant audit records, module runtime artifacts, OS paging and enterprise logging remain outside our no-app-managed-storage boundary.
+Exchange uses its normal interactive connection with WAM disabled for that connection, verifies the tenant and operator against Graph before reading, and reuses the connection until Clear session or exit. Clear session closes helper input so module disconnect runs; after a two-second grace period the app terminates the helper if necessary. Cancellation and protocol failures also close the helper. No tenant consent grants or enterprise application entries are automatically removed. Tenant audit records, module runtime artifacts, OS paging and enterprise logging remain outside our no-app-managed-storage boundary.
 
 The previous MSAL/token-pipe description applies only to Advanced custom-registration mode. Default Graph requests use Microsoft's module transport; the app checks the endpoint both before and inside the helper. Module transport behavior is not the same as the custom HttpClient's redirect/cookie policy. No real tenant evidence is included in the module integration fixtures.
 

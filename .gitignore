@@ -9,3 +9,14 @@ work/
 artifacts/
 evidence/
 .env
+.env.*
+# Signing keys, certificates, release packages and local credential files.
+*.pfx
+*.p12
+*.key
+*.pem
+*.cer
+*.msix
+*.msixbundle
+*.zip
+*.publishsettings

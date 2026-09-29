@@ -2,7 +2,8 @@
 
 Start with a trusted read-only single-account workflow, then add Exchange collectors before response operations. Do not wrap or execute the historical scripts. Keep collectors and detection logic separate from desktop UI. Never treat missing or failed collection as absence of compromise.
 
-The Mira personality instructions will be supplied from the owner's other computer. No replacement persona or invented Mira rules have been added. Integrate the provided instructions when available; keep product copy clear and suitable for IT investigations.
+Keep product copy clear and suitable for IT investigations. Use synthetic data in tests,
+screenshots and bug reports; see CONTRIBUTING.md and SECURITY.md at the repository root.
 
 Build with .NET 10 SDK:
 

@@ -15,10 +15,10 @@ public sealed class ModuleSession : HttpMessageHandler
     public bool Connected => process is { HasExited: false };
     public async Task<JsonElement> ConnectAsync(string tenant, CancellationToken ct, bool includeGrants = false)
     {
-        var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe"))
+        var start = new ProcessStartInfo(PortableRuntime.PowerShellPath)
         { UseShellExecute = false, CreateNoWindow = false, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
         foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", Path.Combine(AppContext.BaseDirectory, "ModuleSession.ps1") }) start.ArgumentList.Add(arg);
-        start.Environment["POWERSHELL_TELEMETRY_OPTOUT"] = "1";
+        PortableRuntime.Configure(start);
         process = Process.Start(start) ?? throw new IOException();
         var activeProcess = process;
         stderr = Task.Run(async () => { var buffer = new char[4096]; while (await activeProcess.StandardError.ReadAsync(buffer) != 0) Array.Clear(buffer); });

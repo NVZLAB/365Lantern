@@ -16,7 +16,7 @@ public sealed class ExchangeCollector
         using var json = JsonDocument.Parse(await RunAsync(request, ct));
         return json.RootElement.Clone();
     }
-    private static string PowerShellPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    private static string PowerShellPath => PortableRuntime.PowerShellPath;
     public async Task<ExchangeResult> CollectAsync(TenantSession session, string account, CancellationToken ct)
     {
         try
@@ -51,7 +51,7 @@ public sealed class ExchangeCollector
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
         };
         foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", Path.Combine(AppContext.BaseDirectory, "Collect-Exchange.ps1") }) start.ArgumentList.Add(argument);
-        start.Environment["POWERSHELL_TELEMETRY_OPTOUT"] = "1";
+        PortableRuntime.Configure(start);
         using var process = Process.Start(start) ?? throw new IOException();
         using var registration = timeout.Token.Register(() => { try { if (!process.HasExited) process.Kill(true); } catch (InvalidOperationException) { } });
         // Sensitive input travels through an anonymous pipe, never arguments or a temporary file.

@@ -185,6 +185,7 @@ Check(exportedFindings.RootElement.GetProperty("Findings").GetArrayLength() == 2
 await ActivityChecks.Run(Check);
 SuspiciousChecks.Run(Check);
 await PersistenceChecks.Run(Check);
+await ReleaseChecks.Run(Check);
 Console.WriteLine($"{passed} checks passed.");
 
 sealed class ScriptedHandler(IEnumerable<HttpResponseMessage> responses) : HttpMessageHandler

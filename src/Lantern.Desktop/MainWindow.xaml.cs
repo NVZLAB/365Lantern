@@ -22,10 +22,30 @@ public partial class MainWindow : Window
     private CancellationTokenSource? operation;
     private string page = "Investigate";
     private bool closing;
+    private async void CheckUpdates(object sender, RoutedEventArgs e)
+    {
+        UpdateButton.IsEnabled = false;
+        try
+        {
+            var current = ReleaseVersion.Parse(BuildInfo.Version) ?? throw new InvalidOperationException();
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }) { Timeout = TimeSpan.FromSeconds(15), MaxResponseContentBufferSize = 4 * 1024 * 1024 };
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var latest = await ReleaseUpdates.CheckAsync(client, current.Pre.Length > 0, timeout.Token);
+            if (closing) return;
+            var description = latest is null ? "No eligible public releases have been published yet." : latest.CompareTo(current) > 0 ? $"A newer release is available: {latest.Text}." : $"No newer eligible release was found. Highest published version: {latest.Text}.";
+            if (MessageBox.Show(this, $"Installed: {BuildInfo.Version}\n{description}\n\n" + (current.Pre.Length > 0 ? "This preview checks stable and prerelease versions." : "This build checks stable releases only.") + "\n\nOpen GitHub Releases? Download and extract updates to a new folder. Export your case before closing the current app.", "365Lantern updates", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ReleaseUpdates.Page) { UseShellExecute = true });
+        }
+        catch (Exception) { if (!closing) MessageBox.Show(this, "The update check could not complete. GitHub may be unavailable, private, or rate limited. Your current app and investigation are unchanged.\n\nRelease page: " + ReleaseUpdates.Page, "Update check unavailable", MessageBoxButton.OK, MessageBoxImage.Information); }
+        finally { UpdateButton.IsEnabled = true; }
+    }
 
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"365Lantern {BuildInfo.Version} — Investigation preview";
+        VersionLabel.Text = "v" + BuildInfo.Version;
+        VersionLabel.ToolTip = BuildInfo.InformationalVersion;
         themes.Set("System");
         ShowPage("Connect tenant");
         Loaded += async (_, _) =>
@@ -75,6 +95,7 @@ public partial class MainWindow : Window
     }
     private void SetBusy(bool busy)
     {
+        if (!busy) CollectionAnimation.Visibility = Visibility.Collapsed;
         OfflineButton.IsEnabled = ConnectButton.IsEnabled = DisconnectButton.IsEnabled = !busy;
         CollectButton.IsEnabled = !busy && session.IsConnected;
         CancelButton.IsEnabled = busy;
@@ -132,6 +153,7 @@ public partial class MainWindow : Window
         operation = new CancellationTokenSource(); SetBusy(true);
         Investigation? retained = null;
         StatusLabel.Text = "Collecting available evidence into memory; unavailable sources will be reported as gaps…";
+        CollectionAnimation.Visibility = Visibility.Visible;
         try
         {
             bool resolutionFailed = false;
@@ -302,7 +324,7 @@ public partial class MainWindow : Window
     {
         suspicious = []; SuspiciousSummary.Text = ""; PersistenceList.ItemsSource = null; RelatedButton.IsEnabled = false;
         timeline = []; TimelineEvents.ItemsSource = null; TimelineAccount.ItemsSource = null; TimelineSummary.Text = "";
-        diagnostics = null; DiagnosticGroups.ItemsSource = null; DiagnosticEvents.ItemsSource = null; DiagnosticsSummary.Text = ""; DiagnosticsPanel.Visibility = Visibility.Collapsed;
+        diagnostics = null; ObservedIPs.ItemsSource = ObservedCountries.ItemsSource = ObservedRegions.ItemsSource = null; DiagnosticGroups.ItemsSource = null; DiagnosticEvents.ItemsSource = null; DiagnosticsSummary.Text = ""; DiagnosticsPanel.Visibility = Visibility.Collapsed;
         AccountDetails.ItemsSource = null; investigation = null; FindingsList.ItemsSource = null; CoverageList.ItemsSource = null;
         FindingDetail.Text = ""; RawEvidence.Clear(); RawPanel.Visibility = Visibility.Collapsed;
         LimitsLabel.Text = ""; SummaryLabel.Text = "Ready when you are"; ScopeLabel.Text = "Connect a tenant or start an offline investigation.";
@@ -352,6 +374,9 @@ public partial class MainWindow : Window
     private void RefreshDiagnostics()
     {
         if (diagnostics is null) return;
+        ObservedIPs.ItemsSource = diagnostics.IPs;
+        ObservedCountries.ItemsSource = diagnostics.Countries;
+        ObservedRegions.ItemsSource = diagnostics.Regions;
         DiagnosticGroups.ItemsSource = DiagnosticView.SelectedIndex switch { 1 => diagnostics.Countries, 2 => diagnostics.Regions, 3 => diagnostics.Applications, _ => diagnostics.IPs };
         DiagnosticEvents.ItemsSource = null;
     }
@@ -413,6 +438,19 @@ public partial class MainWindow : Window
     {
         // Explicit developer-only invocation; exclusively synthetic data. No auth is started.
         Directory.CreateDirectory(directory);
+        ShowPage("Investigate"); SetBusy(true); CollectionAnimation.Visibility = Visibility.Visible;
+        foreach (var theme in new[] { "Light", "Dark" })
+        {
+            themes.Set(theme); UpdateLayout(); await Task.Delay(350);
+            if (!CollectionAnimation.IsVisible || !CancelButton.IsEnabled) throw new InvalidOperationException("Collection indicator unavailable.");
+            var surface = (FrameworkElement)Content;
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)surface.ActualWidth, (int)surface.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(surface);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using var file = File.Create(Path.Combine(directory, "collecting-" + theme.ToLowerInvariant() + ".png")); encoder.Save(file);
+        }
+        SetBusy(false);
+        if (CollectionAnimation.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Collection indicator did not stop.");
         RunDemo(this, new RoutedEventArgs());
         if (suspicious.Count != 3 || FindingsList.Items.Count != 3 || !SuspiciousSummary.Text.Contains("2 high priority")) throw new InvalidOperationException("Suspicious behavior block failed.");
         if (timeline.Count != 5 || timeline.Count(r => r.Category == "Mail flow") != 1) throw new InvalidOperationException("Timeline rows missing.");

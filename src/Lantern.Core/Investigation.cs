@@ -60,6 +60,7 @@ public static class EvidenceExport
         var evidenceBytes = JsonSerializer.SerializeToUtf8Bytes(investigation, options);
         static string Safe(string text) => text.Replace("\r", " ").Replace("\n", " ");
         var summary = new StringBuilder("365Lantern — investigation summary\n");
+        summary.AppendLine($"Tool version: {BuildInfo.InformationalVersion}");
         summary.AppendLine(investigation.IsDemo ? "SYNTHETIC DEMO DATA — not a real incident" : investigation.Import is not null ? "IMPORTED DATA — origin and completeness unverified" : "LIVE COLLECTION — analyst review required");
         summary.AppendLine($"Tenant: {Safe(investigation.Tenant)}\nAccount: {Safe(investigation.Account)}");
         if (investigation.Import is { } imported) summary.AppendLine($"Original input SHA-256: {imported.Sha256}; bytes: {imported.Bytes}; records: {imported.Records}. Original file is not embedded. Dates below are observed event bounds, not export filters.");
@@ -84,7 +85,7 @@ public static class EvidenceExport
         files["timeline.csv"] = Encoding.UTF8.GetBytes(FindingsExport.TimelineCsv(investigation));
         files["findings.csv"] = Encoding.UTF8.GetBytes(FindingsExport.Csv(investigation));
         var manifest = files.Select(f => new { file = f.Key, bytes = f.Value.Length, sha256 = Convert.ToHexString(SHA256.HashData(f.Value)) }).ToArray();
-        files["manifest.json"] = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, tool = "365Lantern", version = "0.1.0", investigation.CollectedUtc, files = manifest }, options);
+        files["manifest.json"] = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, tool = "365Lantern", version = BuildInfo.Version, build = BuildInfo.InformationalVersion, investigation.CollectedUtc, files = manifest }, options);
         using var buffer = new MemoryStream();
         using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, true))
             foreach (var f in files)
