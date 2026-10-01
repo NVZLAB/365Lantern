@@ -8,7 +8,7 @@ compiled assembly metadata; do not hard-code another version in application code
 The SDK may append the source commit to the informational version. This identifies
 the source revision, but does not certify that a local working tree was clean.
 
-Current target: 0.1.0-alpha.1. This is an unreleased preview, not a claim of production readiness.
+Current development target: 0.1.0-alpha.2. Public 0.1.0-alpha.1 was released on 2026-10-01. Both remain alpha versions, not a claim of production readiness.
 
 ## Numbering
 

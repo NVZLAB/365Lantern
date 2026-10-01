@@ -10,12 +10,11 @@ must remain explicit collection gaps.
 Do not post credentials, tokens, tenant exports, real mailbox content, exploitable
 details or private screenshots in public issues or pull requests.
 
-When enabled, use GitHub's **Security → Advisories → Report a vulnerability** for
+Private vulnerability reporting is enabled. Use GitHub's **Security → Advisories → Report a vulnerability** for
 [this repository](https://github.com/NVZLAB/365Lantern/security/advisories).
 If that option is unavailable, open an issue asking only for a private reporting
 channel, without disclosing the vulnerability or sensitive data. No alternate private
-email address is currently designated. Maintainers must enable and verify private
-vulnerability reporting when the repository becomes public.
+email address is currently designated. Private reporting was verified at the public-alpha launch.
 
 Include the version/build, affected feature, expected versus observed behavior,
 impact, and minimal synthetic reproduction. Test only against systems you are
