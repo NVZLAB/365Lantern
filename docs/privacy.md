@@ -1,5 +1,16 @@
 # Privacy boundaries
 
+Optional response uses a separate process-scoped session with delegated User.Read.All
+and only the requested action's write scope: User.RevokeSessions.All,
+User-PasswordProfile.ReadWrite.All, UserAuthenticationMethod.ReadWrite.All, or the broad Directory.AccessAsUser.All permission for device removal.
+Temporary passwords remain transient in memory/stdin and are excluded from journal
+and export models; they are not saved, emailed or automatically copied to the clipboard by Lantern. A transient post-reset window permits explicit reveal and manual copying; Windows clipboard history is outside application control.
+Explicit per-account and selected-method/device confirmation
+is required. The original investigation helper continues to expose only reads.
+Response records stay in memory until explicit export; consent and Microsoft audit
+events can persist in the tenant. Closing Lantern does not revoke consent. See
+[controlled response](controlled-response.md) for outcome semantics and limitations.
+
 The optional **Check for updates** button sends an unauthenticated HTTPS request to
 the public GitHub Releases API for NVZLAB/365Lantern. Only a product/version User-Agent
 and standard request headers are sent; no tenant data, tokens or investigation state
@@ -38,3 +49,19 @@ Account inventory adds GET requests to /v1.0/users, /v1.0/reports/authentication
 The account timeline adds the allowlisted Graph directoryAudits endpoint and fixed read commands Get-MessageTraceV2 and Search-UnifiedAuditLog. Mailbox alias resolution is read-only. Collection retains message metadata (including subjects, sender/recipient addresses, IPs and message IDs) and audit records in memory; it does not retrieve message bodies or attachments. The same explicit ZIP export includes timeline JSON/CSV and coverage limitations. Untrusted links remain text. Collection failures do not authorize privilege escalation: independently available sources continue, fallbacks are labeled, and ambiguous failures are not asserted to be licensing diagnoses. See activity-timeline.md for query scope and limits.
 
 Suspicious Behavior adds a bounded ThreatIntelligence audit search per current mailbox address (up to 20). Microsoft verdict metadata stays in memory with existing audit evidence. Correlations use local evidence only; no external geolocation or reputation lookups are sent. Explicit exports now also include suspicious.json and suspicious.csv, with escaped CSV fields and supporting evidence references. Indicator rules and their limitations are documented in suspicious-behavior.md.
+
+## Analyst reports
+Report text and indicator assessments stay in the current investigation's memory until
+explicit export. HTML/JSON reports and evidence archives include analyst names, notes
+and referenced observations and must be treated as sensitive case data. They are not
+encrypted or redacted. The HTML report has no external resources or scripts and encodes
+supplied text. Browser printing is an operator action. Session clearing, replacement
+with a new investigation and application exit discard the in-memory report. No report
+re-import or automatic disk persistence is implemented. See incident-reports.md.
+
+Application-name enrichment uses read-only, GUID-scoped service-principal lookups
+with a fixed field selection and the existing optional directory permission. Names,
+application IDs and publisher labels are retained beside the original grant record;
+no credentials are requested or stored. Lookups are cached per collection, capped at
+200 requests and stop on access denial or throttling. Unresolved grants remain visible.
+Action blueprints only insert editable report text; they do not execute response actions.

@@ -4,8 +4,8 @@
       <Ellipse x:Name="Glow" Width="148" Height="148" VerticalAlignment="Bottom" Opacity="0.08" Fill="{DynamicResource AccentBrush}"/>
       <Viewbox Width="144" Height="192">
         <Canvas Width="48" Height="64">
-          <Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.5" StrokeLineJoin="Round" Data="M 14,15 L 14,8 Q 14,3 20,3 L 28,3 Q 34,3 34,8 L 34,15 M 12,20 L 36,20 L 42,51 Q 43,58 36,59 L 12,59 Q 5,58 6,51 Z"/>
-          <Path x:Name="Flame" Fill="{DynamicResource AccentBrush}" Data="M24,29 L31,43 L24,51 L17,43 Z" RenderTransformOrigin="0.5,0.8">
+          <Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M 14,15 L 14,8 Q 14,3 20,3 L 28,3 Q 34,3 34,8 L 34,15 M 12,20 L 36,20 L 42,51 Q 43,58 36,59 L 12,59 Q 5,58 6,51 Z"/>
+          <Path x:Name="Flame" Fill="{DynamicResource AccentBrush}" Data="M24,28 L33,43 L24,53 L15,43 Z" RenderTransformOrigin="0.5,0.8">
             <Path.RenderTransform><TransformGroup><ScaleTransform x:Name="FlameScale" CenterX="24" CenterY="50"/><SkewTransform x:Name="FlameSway" CenterX="24" CenterY="50"/></TransformGroup></Path.RenderTransform>
           </Path>
         </Canvas>

@@ -1,0 +1,15 @@
+name: Feature suggestion
+description: Suggest an improvement to the investigation or reporting workflow.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the analyst workflow using synthetic examples; do not attach real evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+      description: Include expected permissions, privacy implications and graceful fallback behavior if relevant.

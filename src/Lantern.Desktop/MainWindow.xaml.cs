@@ -56,6 +56,9 @@ public partial class MainWindow : Window
         Closing += async (_, e) =>
         {
             if (closing) return;
+            if (responseBusy) { e.Cancel = true; MessageBox.Show(this, "Wait for the response operation to finish so its outcome can be recorded.", "Response in progress"); return; }
+            if (!LeaveResponseRecords()) { e.Cancel = true; return; }
+            if (!LeaveAssessment()) { e.Cancel = true; return; }
             e.Cancel = true; closing = true;
             await Task.Yield(); // Leave the original Closing callback before issuing Close again.
             operation?.Cancel(); ClearInvestigation();
@@ -71,16 +74,22 @@ public partial class MainWindow : Window
     }
     private void Navigate(object sender, RoutedEventArgs e)
     {
+        if (responseBusy) return;
+        if (!LeaveAssessment()) return;
         ShowPage((string)((Button)sender).Tag);
     }
     private void ShowPage(string name)
     {
+        PageScroll.ScrollToTop();
         page = name;
         PageTitle.Text = page;
         ConnectionPanel.Visibility = page == "Connect tenant" ? Visibility.Visible : Visibility.Collapsed;
         ResponsePanel.Visibility = page == "Response" ? Visibility.Visible : Visibility.Collapsed;
         InvestigationPanel.Visibility = page == "Investigate" ? Visibility.Visible : Visibility.Collapsed;
         ResultsPanel.Visibility = page == "Findings" ? Visibility.Visible : Visibility.Collapsed;
+        ReportPanel.Visibility = page == "Report" ? Visibility.Visible : Visibility.Collapsed;
+        if (page == "Report") RefreshReport();
+        if (page == "Response") RefreshResponse();
         RefreshFindings();
     }
     private void ShowConnected(string tenant, string? operatorUpn)
@@ -102,8 +111,11 @@ public partial class MainWindow : Window
         ExportFindingsButton.IsEnabled = !busy && investigation is not null;
         AdvancedAuthentication.IsEnabled = IncludeGrants.IsEnabled = TenantWide.IsEnabled = !busy;
         RelatedButton.IsEnabled = !busy && investigation is not null;
+        ReportEditor.IsEnabled = !busy && investigation is not null;
         DaysPicker.IsEnabled = ClientIdBox.IsEnabled = TenantIdBox.IsEnabled = !busy;
         AccountBox.IsEnabled = !busy && TenantWide.IsChecked != true;
+        RefreshResponse();
+        if (busy) ResponseEditor.IsEnabled = ExportResponseButton.IsEnabled = false;
     }
     private async void RunDemo(object sender, RoutedEventArgs e)
     {
@@ -122,6 +134,8 @@ public partial class MainWindow : Window
     }
     private async void Connect(object sender, RoutedEventArgs e)
     {
+        if (!LeaveResponseRecords()) return;
+        if (!LeaveAssessment()) return;
         ClearInvestigation();
         operation = new CancellationTokenSource(TimeSpan.FromMinutes(5)); SetBusy(true);
         StatusLabel.Text = "Complete sign-in in your browser. You can cancel here.";
@@ -145,7 +159,9 @@ public partial class MainWindow : Window
     private async void Collect(object sender, RoutedEventArgs e) => await RunCollection();
     private async Task RunCollection(string? relatedAccount = null)
     {
+        if (!LeaveAssessment()) return;
         var parent = relatedAccount is null ? null : investigation;
+        if (parent is null && !LeaveResponseRecords()) return;
         if (parent is not null && parent.Evidence.Count >= 200000) { StatusLabel.Text = "Case has reached the related-investigation safety boundary. Export and start a narrower investigation."; return; }
         if (parent is null) ClearInvestigation();
         var targetAccount = relatedAccount ?? AccountBox.Text.Trim();
@@ -279,8 +295,15 @@ public partial class MainWindow : Window
     }
     private async void ImportJson(object sender, RoutedEventArgs e)
     {
+        if (!LeaveAssessment()) return;
         var dialog = new OfflineInvestigationWindow { Owner = this };
         if (dialog.ShowDialog() != true) return;
+        if (!LeaveResponseRecords()) return;
+        // SelectedFile reads a WPF TextBox: capture it here, on the UI thread.
+        await ImportFileAsync(dialog.SelectedFile);
+    }
+    private async Task ImportFileAsync(string selectedFile)
+    {
         operation = new CancellationTokenSource(); SetBusy(true);
         StatusLabel.Text = "Reading local sign-in JSON into memory…";
         try
@@ -288,7 +311,7 @@ public partial class MainWindow : Window
             var token = operation.Token;
             var result = await Task.Run(async () =>
             {
-                using var stream = new FileStream(dialog.SelectedFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var stream = new FileStream(selectedFile, FileMode.Open, FileAccess.Read, FileShare.Read);
                 if (stream.Length == 0 || stream.Length > JsonSignInImport.MaxBytes)
                     throw new InvalidDataException("Choose a nonempty JSON file no larger than 32 MiB.");
                 var bytes = new byte[(int)stream.Length];
@@ -301,6 +324,7 @@ public partial class MainWindow : Window
             }, token);
             if (!closing)
             {
+                exportedResponses = 0;
                 ShowPage("Investigate"); ShowInvestigation(result);
                 StatusLabel.Text = "Imported all file records and dates. Live account/time filters were not applied. Nothing was saved or sent.";
             }
@@ -315,6 +339,8 @@ public partial class MainWindow : Window
     private void Cancel(object sender, RoutedEventArgs e) => operation?.Cancel();
     private async void Disconnect(object sender, RoutedEventArgs e)
     {
+        if (!LeaveResponseRecords()) return;
+        if (!LeaveAssessment()) return;
         ClearInvestigation(); AccountBox.Clear(); ClientIdBox.Clear(); TenantIdBox.Clear();
         await session.DisconnectAsync();
         SessionLabel.Text = "Not connected"; SetBusy(false);
@@ -322,6 +348,8 @@ public partial class MainWindow : Window
     }
     private void ClearInvestigation()
     {
+        exportedResponses = 0;
+        ResponseReason.Clear(); ResponseStatus.Text = "";
         suspicious = []; SuspiciousSummary.Text = ""; PersistenceList.ItemsSource = null; RelatedButton.IsEnabled = false;
         timeline = []; TimelineEvents.ItemsSource = null; TimelineAccount.ItemsSource = null; TimelineSummary.Text = "";
         diagnostics = null; ObservedIPs.ItemsSource = ObservedCountries.ItemsSource = ObservedRegions.ItemsSource = null; DiagnosticGroups.ItemsSource = null; DiagnosticEvents.ItemsSource = null; DiagnosticsSummary.Text = ""; DiagnosticsPanel.Visibility = Visibility.Collapsed;
@@ -329,6 +357,8 @@ public partial class MainWindow : Window
         FindingDetail.Text = ""; RawEvidence.Clear(); RawPanel.Visibility = Visibility.Collapsed;
         LimitsLabel.Text = ""; SummaryLabel.Text = "Ready when you are"; ScopeLabel.Text = "Connect a tenant or start an offline investigation.";
         ExportFindingsButton.IsEnabled = false;
+        RefreshReport();
+        RefreshResponse();
     }
     private void ShowInvestigation(Investigation value)
     {
@@ -424,12 +454,14 @@ public partial class MainWindow : Window
     private void ExportFindings(object sender, RoutedEventArgs e)
     {
         if (investigation is null) return;
+        if (!LeaveAssessment()) return;
         var dialog = new SaveFileDialog { Title = "Save findings and evidence (JSON + CSV)", Filter = "Investigation archive (*.zip)|*.zip", FileName = $"365Lantern-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip", OverwritePrompt = true };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
             File.WriteAllBytes(dialog.FileName, EvidenceExport.Create(investigation));
-            StatusLabel.Text = "Exported findings.json, findings.csv, evidence.json, summary.txt and manifest.json. Treat the archive as sensitive case material.";
+            exportedResponses = investigation.Responses.Count;
+            StatusLabel.Text = "Exported reports, response records, findings, suspicious behavior, timeline, raw evidence and integrity hashes. Treat the archive as sensitive case material.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { StatusLabel.Text = "Export failed. Check the destination; a partial file may exist."; }
@@ -454,6 +486,39 @@ public partial class MainWindow : Window
         RunDemo(this, new RoutedEventArgs());
         if (suspicious.Count != 3 || FindingsList.Items.Count != 3 || !SuspiciousSummary.Text.Contains("2 high priority")) throw new InvalidOperationException("Suspicious behavior block failed.");
         if (timeline.Count != 5 || timeline.Count(r => r.Category == "Mail flow") != 1) throw new InvalidOperationException("Timeline rows missing.");
+        ShowPage("Report");
+        if (!ReportEditor.IsEnabled || ReportIndicators.Items.Count != 3) throw new InvalidOperationException("Report editor unavailable.");
+        ReportAnalyst.Text = "Synthetic analyst"; ReportCase.Text = "DEMO-001";
+        ReportSummary.Text = "Synthetic investigation for report validation. Indicators require analyst review.";
+        ReportAffected.Text = "alex@example.com — test account, no real incident";
+        ReportImpact.Text = "No real impact. Example forwarding observation requires owner confirmation.";
+        AddActionPrompt(this, new RoutedEventArgs());
+        if (!investigation!.Report.NextSteps.Contains("Proposed — not performed")) throw new InvalidOperationException("Action blueprint did not update report draft.");
+        ReportIndicators.SelectedIndex = 0;
+        AssessmentStatus.SelectedItem = "Expected activity"; AssessmentNotes.Text = "Synthetic fixture confirmed for UI testing.";
+        if (!StoreAssessment() || AssessmentDirty || investigation!.Report.Assessments.Count != 1) throw new InvalidOperationException("Report assessment failed.");
+        File.WriteAllText(Path.Combine(directory, "report.html"), IncidentReport.Html(investigation));
+        File.WriteAllBytes(Path.Combine(directory, "report-evidence.zip"), EvidenceExport.Create(investigation));
+        foreach (var theme in new[] { "Light", "Dark" })
+        {
+            themes.Set(theme); UpdateLayout(); await Task.Delay(150);
+            var reportSurface = (FrameworkElement)Content;
+            var reportBitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)reportSurface.ActualWidth, (int)reportSurface.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            reportBitmap.Render(reportSurface);
+            var reportPng = new System.Windows.Media.Imaging.PngBitmapEncoder(); reportPng.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(reportBitmap));
+            using var reportFile = File.Create(Path.Combine(directory, "report-" + theme.ToLowerInvariant() + ".png")); reportPng.Save(reportFile);
+        }
+        ReportIndicators.SelectedIndex = 1;
+        if (AssessmentNotes.Text.Length != 0 || AssessmentStatus.SelectedItem as string != "Unexplained") throw new InvalidOperationException("Assessment leaked to another indicator.");
+        ReportIndicators.SelectedIndex = 0;
+        if (AssessmentNotes.Text != "Synthetic fixture confirmed for UI testing.") throw new InvalidOperationException("Saved assessment not restored.");
+        AssessmentEditor.BringIntoView(); UpdateLayout(); await Task.Delay(150);
+        var reviewSurface = (FrameworkElement)Content;
+        var reviewBitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)reviewSurface.ActualWidth, (int)reviewSurface.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        reviewBitmap.Render(reviewSurface);
+        var reviewPng = new System.Windows.Media.Imaging.PngBitmapEncoder(); reviewPng.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(reviewBitmap));
+        using (var reviewFile = File.Create(Path.Combine(directory, "report-review.png"))) reviewPng.Save(reviewFile);
+        ShowPage("Findings");
         TimelineCategory.SelectedIndex = 2;
         if (TimelineEvents.Items.Count != 1) throw new InvalidOperationException("Timeline category filter failed.");
         TimelineCategory.SelectedIndex = 0;
@@ -499,7 +564,121 @@ public partial class MainWindow : Window
         ShowInvestigation(imported);
         if (!ScopeLabel.Text.Contains("IMPORTED DATA") || !ExportFindingsButton.IsEnabled || investigation.Findings.Count != 1)
             throw new InvalidOperationException("Import UI failed.");
+        // Source-checkout regression: exercise the real asynchronous file import, not just the parser.
+        var regressionFile = Path.GetFullPath("tests/fixtures/signins/SYNTHETIC-five-failures-then-success.json");
+        if (!File.Exists(regressionFile)) regressionFile = Path.Combine(AppContext.BaseDirectory, "samples", "SYNTHETIC-five-failures-then-success.json");
+        if (File.Exists(regressionFile))
+        {
+            var regressionDialog = new OfflineInvestigationWindow { Owner = this };
+            ((TextBox)regressionDialog.FindName("FileBox")).Text = regressionFile;
+            await ImportFileAsync(regressionDialog.SelectedFile);
+            regressionDialog.Close();
+            if (investigation?.Evidence.Count != 6 || suspicious.Count != 1 || suspicious[0].Title != "Success after repeated invalid-credential failures" || !ExportFindingsButton.IsEnabled)
+                throw new InvalidOperationException("Synthetic file import regression failed.");
+            ShowPage("Report");
+            if (ReportIndicators.Items.Count != 1) throw new InvalidOperationException("Imported finding missing from report.");
+            var retainedImport = investigation;
+            var invalidFile = Path.Combine(directory, "invalid-import.json"); File.WriteAllText(invalidFile, "[]");
+            await ImportFileAsync(invalidFile);
+            if (!ReferenceEquals(investigation, retainedImport) || !OfflineButton.IsEnabled) throw new InvalidOperationException("Failed import did not preserve previous case.");
+            File.WriteAllText(Path.Combine(directory, "import-regression.txt"), "PASS: six-record file imported asynchronously; expected high-priority finding shown in Findings and Report; invalid import retained previous case.");
+        }
+        investigation = DemoInvestigation.Run(DateTimeOffset.UtcNow, 7) with { Responses = [new ResponseActionRecord("synthetic-response", "Revoke sign-in sessions", "Synthetic tenant", "test@example.com", "22222222-2222-2222-2222-222222222222", "admin@example.com", "33333333-3333-3333-3333-333333333333", "Synthetic response rendering test", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Accepted", "Accepted; effect not verified", "", "", "SYNTHETIC UI TEST — no Microsoft request was sent.")] };
+        ShowPage("Response"); SetBusy(false);
+        if (ResponseEditor.IsEnabled || ResponseRecords.Items.Count != 1 || !ExportResponseButton.IsEnabled) throw new InvalidOperationException("Response demo guard or journal UI failed.");
+        responseBusy = true;
+        if (LeaveResponseRecords()) throw new InvalidOperationException("Active response did not guard case replacement.");
+        responseBusy = false;
+        foreach (var theme in new[] { "Light", "Dark" })
+        {
+            themes.Set(theme); ResponsePanel.BringIntoView(); UpdateLayout(); await Task.Delay(150);
+            var surface = (FrameworkElement)Content;
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)surface.ActualWidth, (int)surface.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(surface);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using var file = File.Create(Path.Combine(directory, "response-" + theme.ToLowerInvariant() + ".png")); encoder.Save(file);
+        }
+        File.WriteAllText(Path.Combine(directory, "response-report.html"), IncidentReport.Html(investigation));
+        foreach (var action in new[] { "password", "method", "device" })
+        {
+            var target = new ResponseTarget("22222222-2222-2222-2222-222222222222", "test@example.com", "Synthetic Test", "Member", "33333333-3333-3333-3333-333333333333", "", DateTimeOffset.UtcNow);
+            var preview = JsonSerializer.SerializeToElement(new { devices = new[] { new { id = "44444444-4444-4444-4444-444444444444", deviceId = "55555555-5555-5555-5555-555555555555", label = "Synthetic laptop — Windows", supported = true, availability = "Unmanaged Entra registration — review shared-device impact" } }, methods = new[] { new { id = "password", type = "", label = "Password — use Reset password", supported = false }, new { id = "synthetic-method_1", type = "microsoftAuthenticatorMethods", label = "Microsoft Authenticator — Synthetic phone", supported = true } } });
+            var approval = new ResponseApprovalWindow(action, "Synthetic tenant", "admin@example.com", target, "Synthetic approval UI test; no network", preview) { Owner = this };
+            approval.Loaded += async (_, _) =>
+            {
+                var button = (Button)approval.FindName("ApproveButton");
+                var validation = (TextBlock)approval.FindName("ValidationMessage");
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                if (validation.Text.Length == 0) throw new InvalidOperationException("Response approval checkbox was bypassed.");
+                ((CheckBox)approval.FindName("Acknowledge")).IsChecked = true;
+                if (action == "password")
+                {
+                    var passwordBox = (PasswordBox)approval.FindName("TemporaryPassword");
+                    if (passwordBox.SecurePassword.Length != 24) throw new InvalidOperationException("Password was not generated automatically.");
+                    passwordBox.Password = "short";
+                    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (!validation.Text.Contains("eight")) throw new InvalidOperationException("Short password was accepted.");
+                    passwordBox.Password = "SYNTHETIC-Password!NeverUse1";
+                }
+                else if (action == "device")
+                {
+                    ((ListBox)approval.FindName("DeviceList")).SelectedIndex = 0;
+                    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (!validation.Text.Contains("object ID")) throw new InvalidOperationException("Device impact approval was bypassed.");
+                    ((TextBox)approval.FindName("DeviceConfirmation")).Text = "44444444-4444-4444-4444-444444444444";
+                    ((CheckBox)approval.FindName("DeviceRecoveryAcknowledged")).IsChecked = true;
+                }
+                else
+                {
+                    var list = (ListBox)approval.FindName("MethodList"); list.SelectedIndex = 0;
+                    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (!validation.Text.Contains("supported")) throw new InvalidOperationException("Unsupported authentication method was selectable.");
+                    list.SelectedIndex = 1;
+                }
+                validation.Text = "Synthetic UI test — nothing will be sent to Microsoft.";
+                foreach (var theme in new[] { "Light", "Dark" })
+                {
+                    themes.Set(theme); approval.UpdateLayout(); await Task.Delay(100);
+                    var surface = (FrameworkElement)approval.Content;
+                    var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)surface.ActualWidth, (int)surface.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                    bitmap.Render(surface);
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                    using var file = File.Create(Path.Combine(directory, "response-approve-" + action + "-" + theme.ToLowerInvariant() + ".png")); encoder.Save(file);
+                }
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            };
+            if (approval.ShowDialog() != true) throw new InvalidOperationException("Synthetic response approval failed.");
+            if (action == "password" && (approval.ApprovedPassword?.Length != "SYNTHETIC-Password!NeverUse1".Length || ((PasswordBox)approval.FindName("TemporaryPassword")).SecurePassword.Length != 0)) throw new InvalidOperationException("Password handoff or clearing failed.");
+            approval.ApprovedPassword?.Dispose();
+        }
+        ShowPage("Report"); UpdateLayout(); await Task.Delay(100);
+        PageScroll.ScrollToBottom(); UpdateLayout(); await Task.Delay(100);
+        if (PageScroll.VerticalOffset <= 0) throw new InvalidOperationException("Scroll regression did not start below top.");
+        ShowPage("Report"); UpdateLayout(); await Task.Delay(100);
+        if (PageScroll.VerticalOffset != 0) throw new InvalidOperationException("Report did not open at top.");
+        using (var handoffSecret = new System.Security.SecureString())
+        {
+            foreach (var c in "SYNTHETIC-NOT-A-REAL-PASSWORD") handoffSecret.AppendChar(c);
+            var handoff = new PasswordHandoffWindow(handoffSecret, "synthetic@example.com", "Unknown") { Owner = this };
+            TextBox? shown = null;
+            handoff.Loaded += (_, _) =>
+            {
+                var controls = ((StackPanel)handoff.Content).Children;
+                shown = controls.OfType<TextBox>().Single();
+                var toggle = controls.OfType<CheckBox>().Single();
+                if (shown.Text.Length != 0 || shown.Visibility != Visibility.Collapsed) throw new InvalidOperationException("Handoff revealed password by default.");
+                toggle.IsChecked = true;
+                if (shown.Text != "SYNTHETIC-NOT-A-REAL-PASSWORD") throw new InvalidOperationException("Handoff reveal failed.");
+                toggle.IsChecked = false;
+                if (shown.Text.Length != 0) throw new InvalidOperationException("Handoff hiding retained visible password.");
+                toggle.IsChecked = true; handoff.Close();
+            };
+            handoff.ShowDialog();
+            if (shown?.Text.Length != 0) throw new InvalidOperationException("Handoff did not clear password on close.");
+        }
         await session.DisconnectAsync(); ClearInvestigation();
+        if (ResponseRecords.ItemsSource is not null || ResponseReason.Text.Length != 0 || ResponseEditor.IsEnabled) throw new InvalidOperationException("Response state was not cleared.");
+        if (ReportSummary.Text.Length != 0 || ReportIndicators.ItemsSource is not null || ReportEditor.IsEnabled || editingIndicator is not null) throw new InvalidOperationException("Report state was not cleared.");
         if (FindingsList.ItemsSource is not null || suspicious.Count != 0 || SuspiciousSummary.Text.Length != 0 || RawEvidence.Text.Length != 0 || ExportFindingsButton.IsEnabled) throw new InvalidOperationException("Clear UI failed.");
         File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: demo findings, light/dark renders, connected navigation, failed collection summary, and clearing investigation UI.");
         Close();

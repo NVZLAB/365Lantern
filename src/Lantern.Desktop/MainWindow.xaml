@@ -5,7 +5,7 @@
       <DockPanel>
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,28">
           <StackPanel Orientation="Horizontal">
-            <Viewbox Width="27" Height="37" Margin="0,0,10,0"><Canvas Width="48" Height="64"><Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="5" StrokeLineJoin="Round" Data="M 14,15 L 14,8 Q 14,3 20,3 L 28,3 Q 34,3 34,8 L 34,15 M 12,20 L 36,20 L 42,51 Q 43,58 36,59 L 12,59 Q 5,58 6,51 Z"/><Path Fill="{DynamicResource AccentBrush}" Data="M24,29 L31,43 L24,51 L17,43 Z"/></Canvas></Viewbox>
+            <Viewbox Width="27" Height="37" Margin="0,0,10,0"><Canvas Width="48" Height="64"><Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M 14,15 L 14,8 Q 14,3 20,3 L 28,3 Q 34,3 34,8 L 34,15 M 12,20 L 36,20 L 42,51 Q 43,58 36,59 L 12,59 Q 5,58 6,51 Z"/><Path Fill="{DynamicResource AccentBrush}" Data="M24,28 L33,43 L24,53 L15,43 Z"/></Canvas></Viewbox>
             <TextBlock Text="365Lantern" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center"/>
           </StackPanel>
           <TextBlock Text="INVESTIGATION PREVIEW" FontSize="10" Margin="0,12,0,0" Style="{StaticResource Muted}"/>
@@ -25,6 +25,7 @@
 
           <Button Content="Findings" Tag="Findings" Style="{StaticResource Nav}" Click="Navigate"/>
           <Button Content="Response" Tag="Response" Style="{StaticResource Nav}" Click="Navigate"/>
+          <Button Content="Report" Tag="Report" Style="{StaticResource Nav}" Click="Navigate"/>
 
         </StackPanel>
       </DockPanel>
@@ -35,8 +36,35 @@
         <StackPanel><TextBlock x:Name="PageTitle" Text="Tenant overview" FontSize="28" FontWeight="SemiBold"/><TextBlock x:Name="PageSubtitle" Text="Illuminate suspicious activity. Keep the evidence in your hands." Style="{StaticResource Muted}" Margin="0,6,14,0"/></StackPanel>
         <StackPanel Grid.Column="1" HorizontalAlignment="Right"><TextBlock x:Name="SessionLabel" Text="Not connected" HorizontalAlignment="Right" FontWeight="SemiBold"/><Button x:Name="DisconnectButton" Content="Clear session" Margin="0,8,0,0" Click="Disconnect"/></StackPanel>
       </Grid>
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <ScrollViewer x:Name="PageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
         <StackPanel>
+          <StackPanel x:Name="ReportPanel" Visibility="Collapsed">
+            <TextBlock x:Name="ReportAvailability" Style="{StaticResource Muted}" Margin="0,0,0,16"/>
+            <StackPanel x:Name="ReportEditor" IsEnabled="False">
+              <WrapPanel Margin="0,0,0,16"><Button Content="Export report HTML…" Click="ExportReportHtml"/><Button Content="Export report + evidence ZIP…" Click="ExportFindings"/></WrapPanel>
+              <Border Style="{StaticResource Card}"><StackPanel>
+                <TextBlock Text="Analyst assessment" FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock Text="Observed records, automated indicators and your conclusions remain distinct. Write the summary fields for your client contact. Detailed technical notes and evidence references stay in the evidence package. Classify individual indicators below." Style="{StaticResource Muted}" Margin="0,8,0,14"/>
+                <TextBlock Text="Case reference"/><TextBox x:Name="ReportCase" TextChanged="ReportTextChanged" MaxLength="200" Margin="0,6,0,12" AutomationProperties.Name="Case reference"/>
+                <TextBlock Text="Analyst name (required to assess an indicator)"/><TextBox x:Name="ReportAnalyst" TextChanged="ReportTextChanged" MaxLength="200" Margin="0,6,0,12" AutomationProperties.Name="Report analyst"/>
+                <TextBlock Text="What happened and when — client-facing summary"/><TextBox x:Name="ReportSummary" TextChanged="ReportTextChanged" AcceptsReturn="True" TextWrapping="Wrap" Height="100" VerticalScrollBarVisibility="Auto" MaxLength="20000" Margin="0,6,0,12" AutomationProperties.Name="Analyst summary"/>
+                <TextBlock Text="Affected accounts — distinguish confirmed from suspected"/><TextBox x:Name="ReportAffected" TextChanged="ReportTextChanged" AcceptsReturn="True" TextWrapping="Wrap" Height="65" VerticalScrollBarVisibility="Auto" MaxLength="10000" Margin="0,6,0,12" AutomationProperties.Name="Affected accounts"/>
+                <TextBlock Text="Potential business impact and uncertainties — client-facing"/><TextBox x:Name="ReportImpact" TextChanged="ReportTextChanged" AcceptsReturn="True" TextWrapping="Wrap" Height="90" VerticalScrollBarVisibility="Auto" MaxLength="20000" Margin="0,6,0,0" AutomationProperties.Name="Potential impact"/><TextBlock Text="Security hardening plan" FontWeight="SemiBold" Margin="0,16,0,6"/><TextBlock Text="Choose a suggestion, then edit its scope, owner, due date and status. Adding a prompt does not perform the action." Style="{StaticResource Muted}"/><ComboBox x:Name="ActionPromptPicker" DisplayMemberPath="Title" SelectionChanged="ActionPromptChanged" Margin="0,8,0,6" AutomationProperties.Name="Suggested next step"/><TextBlock x:Name="ActionPromptDescription" Style="{StaticResource Muted}" Margin="0,0,0,8"/><Button Content="Add suggested action to report" Click="AddActionPrompt" HorizontalAlignment="Left"/><TextBlock Text="Recommended next steps and reported actions — client-facing" Margin="0,12,0,0"/><TextBox x:Name="ReportNextSteps" TextChanged="ReportTextChanged" AcceptsReturn="True" TextWrapping="Wrap" Height="90" VerticalScrollBarVisibility="Auto" MaxLength="20000" Margin="0,6,0,0" AutomationProperties.Name="Report next steps"/>
+              </StackPanel></Border>
+              <Border Style="{StaticResource Card}"><StackPanel>
+                <TextBlock Text="Review automated indicators" FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock x:Name="ReportCounts" Style="{StaticResource Muted}" Margin="0,8,0,12"/>
+                <ListBox x:Name="ReportIndicators" MaxHeight="230" SelectionChanged="ReportIndicatorSelected" AutomationProperties.Name="Report indicators"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="5"><TextBlock Text="{Binding Indicator.Title}" FontWeight="SemiBold"/><TextBlock Text="{Binding Indicator.Account}"/><TextBlock Text="{Binding AssessmentLabel}" Style="{StaticResource Muted}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+                <StackPanel x:Name="AssessmentEditor" IsEnabled="False" Margin="0,14,0,0">
+                  <TextBlock Text="Analyst classification"/><ComboBox x:Name="AssessmentStatus" Margin="0,6,0,12" AutomationProperties.Name="Analyst classification"/>
+                  <TextBlock Text="Supporting notes (required): why this classification, who verified it, and the business purpose. Save before selecting another indicator."/><TextBox x:Name="AssessmentNotes" AcceptsReturn="True" TextWrapping="Wrap" Height="90" MaxLength="20000" VerticalScrollBarVisibility="Auto" Margin="0,6,0,12" AutomationProperties.Name="Assessment notes"/>
+                  <Button Content="Save assessment to session" Click="SaveAssessment" HorizontalAlignment="Left"/>
+                  <Expander Header="Supporting observations and evidence IDs" Foreground="{DynamicResource InkBrush}" Margin="0,12,0,0"><TextBox x:Name="AssessmentEvidence" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="280" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Assessment supporting evidence"/></Expander>
+                </StackPanel>
+              </StackPanel></Border>
+              <TextBlock Text="The HTML is a client-facing executive summary. Detailed assessments, timeline and event records remain in the evidence ZIP. Review your narrative before sharing. HTML can be printed to PDF from your browser." Style="{StaticResource Muted}"/>
+            </StackPanel>
+          </StackPanel>
           <Border x:Name="ConnectionPanel" Style="{StaticResource Card}" Visibility="Collapsed">
             <StackPanel>
               <TextBlock Text="Connect your tenant" FontSize="20" FontWeight="SemiBold"/>
@@ -50,7 +78,32 @@
               <Button x:Name="ConnectButton" Content="Sign in with Microsoft" Click="Connect" HorizontalAlignment="Left"/>
             </StackPanel>
           </Border>
-          <Border x:Name="ResponsePanel" Style="{StaticResource Card}" Visibility="Collapsed"><StackPanel><TextBlock Text="Response actions are not enabled in this build" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="This first slice validates investigation and evidence handling. No password resets, session revocation, rule changes, or other tenant writes are implemented." Margin="0,12,0,0" Style="{StaticResource Muted}"/></StackPanel></Border>
+          <Border x:Name="ResponsePanel" Style="{StaticResource Card}" Visibility="Collapsed"><StackPanel>
+            <TextBlock Text="Controlled response — experimental alpha" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="Choose one response action for an investigated account. Preparation requests access for that action; the tenant change requires final approval. Each result is recorded separately." Style="{StaticResource Muted}" Margin="0,10,0,12"/>
+            <TextBlock x:Name="ResponseAvailability" Style="{StaticResource Muted}" Margin="0,0,0,12"/>
+            <StackPanel x:Name="ResponseEditor">
+              <TextBlock Text="Account from this live investigation"/><ComboBox x:Name="ResponseAccount" DisplayMemberPath="Account" Margin="0,6,0,12" AutomationProperties.Name="Response target account"/>
+              <TextBlock Text="Response action"/><ComboBox x:Name="ResponseOperation" SelectedIndex="0" SelectionChanged="ResponseOperationChanged" Margin="0,6,0,8" AutomationProperties.Name="Response action"><ComboBoxItem Content="Revoke sign-ins / refresh tokens" Tag="revoke"/><ComboBoxItem Content="Reset password; require change at next sign-in" Tag="password"/><ComboBoxItem Content="Remove a registered MFA / passwordless method" Tag="method"/><ComboBoxItem Content="Remove an Entra device registration" Tag="device"/></ComboBox>
+              <TextBlock x:Name="ResponseActionInfo" Style="{StaticResource Muted}" Margin="0,0,0,12"/>
+              <TextBlock Text="Related indicator (optional)"/><ComboBox x:Name="ResponseIndicator" DisplayMemberPath="Label" Margin="0,6,0,12" AutomationProperties.Name="Related response indicator"/>
+              <TextBlock Text="Reason / authorization reference (required)"/><TextBox x:Name="ResponseReason" MaxLength="2000" AcceptsReturn="True" Height="70" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,6,0,12" AutomationProperties.Name="Response reason"/>
+              <TextBlock Text="Review the impact before approving each change. Guest accounts and your own administrator account are excluded. Consent granted in Microsoft may remain after this app closes." Style="{StaticResource Muted}" Margin="0,0,0,12"/>
+              <Button x:Name="PrepareResponseButton" Content="Prepare selected action…" Click="PrepareRevocation" HorizontalAlignment="Left"/>
+            </StackPanel>
+            <Button x:Name="CancelResponseButton" Content="Cancel preparation" Click="Cancel" IsEnabled="False" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+            <TextBlock x:Name="ResponseStatus" Style="{StaticResource Muted}" Margin="0,14,0,12"/>
+            <TextBlock Text="Response action record" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="Records stay in memory until you export the evidence ZIP. They are also summarized in the HTML report. An accepted request does not establish containment." Style="{StaticResource Muted}" Margin="0,6,0,10"/>
+            <ItemsControl x:Name="ResponseRecords"><ItemsControl.ItemTemplate><DataTemplate><Border Style="{StaticResource Card}" Margin="0,0,0,8"><StackPanel>
+              <TextBlock Text="{Binding Action}" FontWeight="SemiBold"/><TextBlock Text="{Binding Account}"/><TextBlock Text="{Binding DeviceName}"/><TextBlock Text="{Binding DeviceObjectId}" FontSize="11"/>
+              <TextBlock Text="{Binding RequestedUtc, StringFormat='Requested (UTC): {0:u}'}"/>
+              <TextBlock Text="{Binding Operator, StringFormat='Operator: {0}'}"/>
+              <TextBlock Text="{Binding Status}" FontWeight="SemiBold"/><TextBlock Text="{Binding Verification}"/>
+              <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}"/>
+            </StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+            <Button x:Name="ExportResponseButton" Content="Export report + evidence ZIP…" Click="ExportFindings" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+          </StackPanel></Border>
           <StackPanel x:Name="InvestigationPanel" Visibility="Collapsed">
             <Border Style="{StaticResource Card}">
               <StackPanel>
@@ -62,7 +115,7 @@
           </StackPanel>
           <StackPanel x:Name="ResultsPanel" Visibility="Collapsed">
             <WrapPanel><Button x:Name="RelatedButton" Content="Related accounts…" Click="Related" IsEnabled="False" Margin="0,0,8,12"/><Button x:Name="ExportFindingsButton" Content="Export Findings…" IsEnabled="False" Click="ExportFindings" HorizontalAlignment="Left" Margin="0,0,0,12"/></WrapPanel>
-            <TextBlock Text="ZIP includes JSON/CSV suspicious behavior, findings and timeline, raw evidence, summary and integrity hashes. Contains sensitive case data." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
+            <TextBlock Text="ZIP includes report HTML/JSON, JSON/CSV suspicious behavior, findings and timeline, raw evidence, summary and integrity hashes. Contains sensitive case data." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
             <Border Style="{StaticResource Card}"><StackPanel><TextBlock x:Name="SummaryLabel" Text="Ready when you are" FontSize="20" FontWeight="SemiBold"/><TextBlock x:Name="ScopeLabel" Text="Connect a tenant or start an offline investigation." Margin="0,8,0,0" Style="{StaticResource Muted}"/></StackPanel></Border>
             <Border Style="{StaticResource Card}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2"><StackPanel><TextBlock Text="Suspicious Behavior" FontSize="18" FontWeight="SemiBold"/><TextBlock x:Name="SuspiciousSummary" Text="Run an investigation to review suspicious indicators." Style="{StaticResource Muted}" Margin="0,6,0,14"/>
               <ListBox x:Name="FindingsList" MaxHeight="240" SelectionChanged="FindingSelected" AutomationProperties.Name="Suspicious behavior"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="5,7"><TextBlock><Run Text="{Binding Priority}" Foreground="{DynamicResource AccentBrush}" FontWeight="Bold"/><Run Text="  ·  "/><Run Text="{Binding Title}" FontWeight="SemiBold"/></TextBlock><TextBlock Text="{Binding Account}" FontSize="12" Style="{StaticResource Muted}"/><TextBlock Text="{Binding Basis}" FontSize="12" Style="{StaticResource Muted}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>

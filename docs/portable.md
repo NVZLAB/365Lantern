@@ -8,7 +8,7 @@ This is a portable folder, not a lone executable. Windows x64 is the initial tar
 
 ## Building
 
-From PowerShell 7 with .NET 10 SDK and Save-Module available:
+From a clean committed checkout, PowerShell 7 with .NET 10 SDK and Save-Module available:
 
 ```powershell
 ./scripts/Build-Portable.ps1
@@ -20,11 +20,14 @@ overwrite existing releases), downloads the pinned official PowerShell ZIP, veri
 GitHub's asset SHA-256 digest, saves exact module versions from PSGallery, and publishes
 self-contained without trimming or single-file extraction. It preserves dependencies'
 licenses/notices. dependencies.json records versions and the PowerShell source hash;
-package-files.json records bundled file hashes. A SHA-256 sidecar covers the final ZIP.
+package-files.json records bundled file hashes. sbom.cdx.json inventories declared
+NuGet dependencies and all shipped DLL/EXE hashes, and third-party contains supplemental
+licenses and exact resolved runtime-package notices. build-provenance.json records the
+source commit. A SHA-256 sidecar covers the final ZIP.
 These checksums are integrity checks, not signatures or proof of clean source.
 
 Only clean build inputs are packaged: published binaries/scripts, downloaded dependencies,
-LICENSE, CHANGELOG and portable launch instructions. Tenant evidence and _EXCLUDE are never
+LICENSE, CHANGELOG, documentation, synthetic sample and portable launch instructions. Tenant evidence and _EXCLUDE are never
 copied from the workspace. Verify redistribution notices and dependency licensing before
 public release. The app is currently unsigned; organization policies or Windows may block it.
 

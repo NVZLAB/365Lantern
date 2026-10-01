@@ -47,6 +47,19 @@ try {
         try { $graphics.Clear([Drawing.Color]::Transparent); $graphics.InterpolationMode='HighQualityBicubic'; $graphics.DrawImage($bitmap,0,0,$size,$size); $image.Save((Join-Path $assets "Logo$size.png"),[Drawing.Imaging.ImageFormat]::Png) }
         finally { $graphics.Dispose(); $image.Dispose() }
     }
+    # Windows taskbar assets must explicitly opt out of the accent-color backplate.
+    foreach ($size in @(16,20,24,30,32,36,40,48,60,64,72,80,96,256)) {
+        $image = [Drawing.Bitmap]::new($size,$size)
+        $graphics = [Drawing.Graphics]::FromImage($image)
+        try {
+            $graphics.Clear([Drawing.Color]::Transparent)
+            $graphics.InterpolationMode='HighQualityBicubic'
+            $graphics.DrawImage($bitmap,0,0,$size,$size)
+            foreach ($variant in @('unplated','lightunplated')) {
+                $image.Save((Join-Path $assets "Logo44.targetsize-${size}_altform-$variant.png"),[Drawing.Imaging.ImageFormat]::Png)
+            }
+        } finally { $graphics.Dispose(); $image.Dispose() }
+    }
 } finally { $bitmap.Dispose(); $icon.Dispose() }
 $escapedPublisher = [Security.SecurityElement]::Escape($Publisher)
 @"

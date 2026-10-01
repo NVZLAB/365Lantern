@@ -22,8 +22,11 @@ Push-Location $PSScriptRoot
 try {
     if ($Check) {
         & $sdk run --project 'tests/Lantern.Checks/Lantern.Checks.csproj' -c Release
+        if ($LASTEXITCODE -ne 0) { throw 'Validation failed. Review the check output above.' }
     } else {
-        & $sdk run --project 'src/Lantern.Desktop/Lantern.Desktop.csproj' -c Release
+        & $sdk build 'src/Lantern.Desktop/Lantern.Desktop.csproj' -c Release --nologo
+        if ($LASTEXITCODE -ne 0) { throw 'Build failed. Review the build errors above. The application was not started.' }
+        & $sdk run --project 'src/Lantern.Desktop/Lantern.Desktop.csproj' -c Release --no-build
+        if ($LASTEXITCODE -ne 0) { throw "365Lantern exited with an application error (exit code $LASTEXITCODE). The build succeeded; reinstalling the SDK is not indicated. See the Windows Application event log for crash details." }
     }
-    if ($LASTEXITCODE -ne 0) { throw 'Build or execution failed. Install the .NET 10 SDK if it is not available.' }
 } finally { Pop-Location }

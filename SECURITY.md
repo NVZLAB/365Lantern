@@ -23,7 +23,9 @@ authorized to assess. Never send a real credential as proof.
 
 ## Intended boundaries
 
-- Implemented tenant operations are read-only. Delegated Microsoft permissions may
+- Investigation operations are read-only. Session revocation, password reset and selected
+  authentication-method / unmanaged Entra device-registration removal require separate response
+  authorization and explicit per-account confirmation. Delegated Microsoft permissions may
   authorize more than Lantern uses; they are not a sandbox against malicious code.
 - No app-managed persistent credentials, automatic evidence upload, telemetry or
   unattended response actions. See [privacy boundaries](docs/privacy.md).

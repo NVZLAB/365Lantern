@@ -2,7 +2,15 @@
 
 Free, open-source Microsoft 365 compromise investigation for the people defending mail systems.
 
-**Status: unreleased alpha preview.** Native Windows desktop app in C# / WPF on .NET 10. Response actions and the full incident-report workflow are not yet implemented.
+**Status: alpha testing preview; not a stable release.** Native Windows desktop app in C# / WPF on .NET 10. Analyst working reports and operator-approved session revocation, generated temporary-password reset, selected authentication-method removal and unmanaged Entra device-registration removal are available. Live validation of the newer actions is pending; see the [controlled response walkthrough](docs/controlled-response.md).
+
+The **Report** tab adds a case reference, analyst summary, affected-account assessment,
+potential impact and per-indicator classifications with supporting notes. Export a
+client-facing HTML executive summary (print to PDF in your browser), or the full evidence ZIP with
+report.html and report.json alongside the existing JSON/CSV evidence and integrity
+manifest. See [incident reports](docs/incident-reports.md) for scope and limitations.
+
+Read the [alpha testing guide](docs/alpha-testing.md) before testing. Use disposable accounts/devices for experimental Response actions and never attach real tenant evidence to public issues.
 
 ## Run
 
@@ -54,7 +62,7 @@ Please read [contribution guidance](CONTRIBUTING.md) and the [security policy](S
 before opening issues or submitting examples. Never post real tenant evidence or credentials.
 
 - `src/Lantern.Core`: collection, analysis, evidence models and exports.
-- `src/Lantern.Desktop`: Windows UI, authentication and fixed read-only PowerShell helpers.
+- `src/Lantern.Desktop`: Windows UI, authentication, fixed read-only investigation helpers and a separate, narrowly scoped response helper.
 - `tests/Lantern.Checks`: synthetic checks; no tenant access.
 - `docs`: setup, privacy, collection limitations and release guidance.
 - `design/mockups`: initial interface concepts.

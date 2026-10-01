@@ -1,0 +1,116 @@
+[
+  {
+    "id": "SYNTHETIC-failure-burst-01",
+    "userPrincipalName": "synthetic-test@example.com",
+    "userDisplayName": "SYNTHETIC TEST ONLY",
+    "createdDateTime": "2026-10-01T12:00:00.0000000+00:00",
+    "isInteractive": true,
+    "appDisplayName": "SYNTHETIC browser sign-in",
+    "clientAppUsed": "Browser",
+    "ipAddress": "192.0.2.24",
+    "riskLevelDuringSignIn": "none",
+    "status": {
+      "errorCode": 50126
+    },
+    "location": {
+      "countryOrRegion": "US",
+      "state": "Synthetic region",
+      "city": "Synthetic city"
+    }
+  },
+  {
+    "id": "SYNTHETIC-failure-burst-02",
+    "userPrincipalName": "synthetic-test@example.com",
+    "userDisplayName": "SYNTHETIC TEST ONLY",
+    "createdDateTime": "2026-10-01T12:01:00.0000000+00:00",
+    "isInteractive": true,
+    "appDisplayName": "SYNTHETIC browser sign-in",
+    "clientAppUsed": "Browser",
+    "ipAddress": "192.0.2.24",
+    "riskLevelDuringSignIn": "none",
+    "status": {
+      "errorCode": 50126
+    },
+    "location": {
+      "countryOrRegion": "US",
+      "state": "Synthetic region",
+      "city": "Synthetic city"
+    }
+  },
+  {
+    "id": "SYNTHETIC-failure-burst-03",
+    "userPrincipalName": "synthetic-test@example.com",
+    "userDisplayName": "SYNTHETIC TEST ONLY",
+    "createdDateTime": "2026-10-01T12:02:00.0000000+00:00",
+    "isInteractive": true,
+    "appDisplayName": "SYNTHETIC browser sign-in",
+    "clientAppUsed": "Browser",
+    "ipAddress": "192.0.2.24",
+    "riskLevelDuringSignIn": "none",
+    "status": {
+      "errorCode": 50126
+    },
+    "location": {
+      "countryOrRegion": "US",
+      "state": "Synthetic region",
+      "city": "Synthetic city"
+    }
+  },
+  {
+    "id": "SYNTHETIC-failure-burst-04",
+    "userPrincipalName": "synthetic-test@example.com",
+    "userDisplayName": "SYNTHETIC TEST ONLY",
+    "createdDateTime": "2026-10-01T12:03:00.0000000+00:00",
+    "isInteractive": true,
+    "appDisplayName": "SYNTHETIC browser sign-in",
+    "clientAppUsed": "Browser",
+    "ipAddress": "192.0.2.24",
+    "riskLevelDuringSignIn": "none",
+    "status": {
+      "errorCode": 50126
+    },
+    "location": {
+      "countryOrRegion": "US",
+      "state": "Synthetic region",
+      "city": "Synthetic city"
+    }
+  },
+  {
+    "id": "SYNTHETIC-failure-burst-05",
+    "userPrincipalName": "synthetic-test@example.com",
+    "userDisplayName": "SYNTHETIC TEST ONLY",
+    "createdDateTime": "2026-10-01T12:04:00.0000000+00:00",
+    "isInteractive": true,
+    "appDisplayName": "SYNTHETIC browser sign-in",
+    "clientAppUsed": "Browser",
+    "ipAddress": "192.0.2.24",
+    "riskLevelDuringSignIn": "none",
+    "status": {
+      "errorCode": 50126
+    },
+    "location": {
+      "countryOrRegion": "US",
+      "state": "Synthetic region",
+      "city": "Synthetic city"
+    }
+  },
+  {
+    "id": "SYNTHETIC-failure-burst-06",
+    "userPrincipalName": "synthetic-test@example.com",
+    "userDisplayName": "SYNTHETIC TEST ONLY",
+    "createdDateTime": "2026-10-01T12:05:00.0000000+00:00",
+    "isInteractive": true,
+    "appDisplayName": "SYNTHETIC browser sign-in",
+    "clientAppUsed": "Browser",
+    "ipAddress": "192.0.2.24",
+    "riskLevelDuringSignIn": "none",
+    "status": {
+      "errorCode": 0
+    },
+    "location": {
+      "countryOrRegion": "US",
+      "state": "Synthetic region",
+      "city": "Synthetic city"
+    }
+  }
+]

@@ -24,7 +24,7 @@ try {
                 'graph' {
                     if (!$context) { throw 'Not connected' }
                     $uri = [uri]$request.uri
-                    if ($uri.Scheme -ne 'https' -or $uri.Host -ne 'graph.microsoft.com' -or $uri.Port -ne 443 -or ($uri.AbsolutePath -notin @('/v1.0/auditLogs/signIns','/beta/auditLogs/signIns','/v1.0/auditLogs/directoryAudits','/v1.0/users','/v1.0/oauth2PermissionGrants','/v1.0/reports/authenticationMethods/userRegistrationDetails') -and $uri.AbsolutePath -notmatch '^/v1\.0/users/[0-9a-fA-F-]{36}/registeredDevices$') -or $uri.UserInfo -or $uri.Fragment) { throw 'Invalid endpoint' }
+                    if ($uri.Scheme -ne 'https' -or $uri.Host -ne 'graph.microsoft.com' -or $uri.Port -ne 443 -or ($uri.AbsolutePath -notin @('/v1.0/auditLogs/signIns','/beta/auditLogs/signIns','/v1.0/auditLogs/directoryAudits','/v1.0/users','/v1.0/oauth2PermissionGrants','/v1.0/reports/authenticationMethods/userRegistrationDetails') -and $uri.AbsolutePath -notmatch '^/v1\.0/users/[0-9a-fA-F-]{36}/registeredDevices$' -and -not ($uri.AbsolutePath -match '^/v1\.0/servicePrincipals/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' -and $uri.Query -ceq '?$select=id,appId,displayName,publisherName,servicePrincipalType')) -or $uri.UserInfo -or $uri.Fragment) { throw 'Invalid endpoint' }
                     try {
                         $body = Invoke-MgGraphRequest -Method GET -Uri $uri.AbsoluteUri -OutputType Json
                         $result = @{status=200;body=$body}

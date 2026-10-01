@@ -15,14 +15,24 @@ public sealed class ModuleSession : HttpMessageHandler
     public bool Connected => process is { HasExited: false };
     public async Task<JsonElement> ConnectAsync(string tenant, CancellationToken ct, bool includeGrants = false)
     {
+        StartHelper("ModuleSession.ps1");
+        return await RequestAsync(new { action = "connect", tenant, includeGrants }, ct);
+    }
+    public async Task<JsonElement> PrepareResponseAsync(string tenant, string actor, string targetId, CancellationToken ct, string operation = "revoke")
+    {
+        StartHelper("ResponseSession.ps1");
+        return await RequestAsync(new { action = "prepare", tenant, actor, targetId, operation }, ct);
+    }
+    private void StartHelper(string script)
+    {
+        if (process is not null) throw new InvalidOperationException("A helper is already active.");
         var start = new ProcessStartInfo(PortableRuntime.PowerShellPath)
         { UseShellExecute = false, CreateNoWindow = false, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
-        foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", Path.Combine(AppContext.BaseDirectory, "ModuleSession.ps1") }) start.ArgumentList.Add(arg);
+        foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", Path.Combine(AppContext.BaseDirectory, script) }) start.ArgumentList.Add(arg);
         PortableRuntime.Configure(start);
         process = Process.Start(start) ?? throw new IOException();
         var activeProcess = process;
         stderr = Task.Run(async () => { var buffer = new char[4096]; while (await activeProcess.StandardError.ReadAsync(buffer) != 0) Array.Clear(buffer); });
-        return await RequestAsync(new { action = "connect", tenant, includeGrants }, ct);
     }
     public async Task<JsonElement> RequestAsync(object request, CancellationToken ct)
     {
@@ -52,7 +62,7 @@ public sealed class ModuleSession : HttpMessageHandler
     }
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (request.Method != HttpMethod.Get || request.RequestUri is null || !(GraphCollector.IsAllowedEndpoint(request.RequestUri) || AccountInventory.Allowed(request.RequestUri) || DirectoryAuditCollector.Allowed(request.RequestUri) || GrantCollector.Allowed(request.RequestUri))) throw new InvalidOperationException();
+        if (request.Method != HttpMethod.Get || request.RequestUri is null || !(GraphCollector.IsAllowedEndpoint(request.RequestUri) || AccountInventory.Allowed(request.RequestUri) || DirectoryAuditCollector.Allowed(request.RequestUri) || GrantCollector.Allowed(request.RequestUri) || GrantCollector.ApplicationAllowed(request.RequestUri))) throw new InvalidOperationException();
         var response = await RequestAsync(new { action = "graph", uri = request.RequestUri.AbsoluteUri }, cancellationToken);
         return new HttpResponseMessage((HttpStatusCode)response.GetProperty("status").GetInt32()) { Content = new StringContent(response.GetProperty("body").GetString() ?? "{}") };
     }

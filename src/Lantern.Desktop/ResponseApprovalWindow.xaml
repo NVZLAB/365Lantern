@@ -1,0 +1,31 @@
+<Window x:Class="Lantern.Desktop.ResponseApprovalWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Confirm response — 365Lantern" Icon="Assets/Lantern.ico" Width="760" Height="790" MinWidth="560" MinHeight="500" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource PageBrush}" FontFamily="Segoe UI" FontSize="14">
+ <Grid Background="{DynamicResource PageBrush}"><Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+  <TextBlock x:Name="ActionHeading" FontSize="23" FontWeight="SemiBold"/>
+  <TextBlock x:Name="TargetSummary" TextWrapping="Wrap" Margin="0,12,0,12"/>
+  <TextBlock x:Name="ImpactSummary" Style="{StaticResource Muted}" Margin="0,0,0,14"/>
+  <StackPanel x:Name="PasswordPanel" Visibility="Collapsed">
+   <TextBlock Text="Temporary password"/><PasswordBox x:Name="TemporaryPassword" MaxLength="256" Padding="10" Background="{DynamicResource CardBrush}" Foreground="{DynamicResource InkBrush}" BorderBrush="{DynamicResource LineBrush}" Margin="0,6,0,12" AutomationProperties.Name="Temporary password"/>
+   <Button Content="Generate another password" Click="GeneratePassword" HorizontalAlignment="Left"/>
+   <TextBlock Text="A random 24-character password is generated automatically. You can regenerate it or enter your own; Microsoft enforces tenant policy. The user must change it at next sign-in. Deliver it through your approved secure channel; do not put it in the reason or report. After execution, a private handoff window lets you reveal the password. Lantern does not save it or automatically copy it to the clipboard." Style="{StaticResource Muted}"/>
+  </StackPanel>
+  <StackPanel x:Name="MethodPanel" Visibility="Collapsed">
+   <TextBlock Text="Select the exact registration to remove" FontWeight="SemiBold"/>
+   <ListBox x:Name="MethodList" Background="{DynamicResource CardBrush}" Foreground="{DynamicResource InkBrush}" BorderBrush="{DynamicResource LineBrush}" MaxHeight="220" Margin="0,8,0,10" AutomationProperties.Name="Registered authentication methods"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock Text="{Binding Label}" TextWrapping="Wrap"/><TextBlock Text="{Binding Id}" FontSize="11"/><TextBlock Text="{Binding Availability}" Style="{StaticResource Muted}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+   <TextBlock Text="Only one selected registration will be removed. Other methods remain. This is not a complete MFA reset. Unsupported entries require Microsoft administration tools; this API may not expose every method. Phone defaults can prevent deletion. Removing the last usable method can lock the user out—verify identity and plan re-enrollment first." Style="{StaticResource Muted}"/>
+  </StackPanel>
+  <StackPanel x:Name="DevicePanel" Visibility="Collapsed">
+   <TextBlock x:Name="DeviceInventorySummary" Style="{StaticResource Muted}" Margin="0,0,0,8"/>
+   <TextBlock Text="Select the Entra device registration to remove" FontWeight="SemiBold"/>
+   <ListBox x:Name="DeviceList" Background="{DynamicResource CardBrush}" Foreground="{DynamicResource InkBrush}" BorderBrush="{DynamicResource LineBrush}" MaxHeight="180" Margin="0,8,0,10" AutomationProperties.Name="Registered devices"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock Text="{Binding Label}" TextWrapping="Wrap"/><TextBlock Text="{Binding Id}" FontSize="11"/><TextBlock Text="{Binding Availability}" Style="{StaticResource Muted}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+   <TextBlock Text="This deletes the tenant's device identity for all users, not just this account. It does not wipe the computer or remove local registration. Preserve any required BitLocker recovery keys first. Lantern cannot undo this operation. Managed, hybrid and system-managed devices require their management tools." Style="{StaticResource Muted}"/>
+   <TextBlock Text="Type the selected device object ID to confirm" Margin="0,10,0,0"/><TextBox x:Name="DeviceConfirmation" MaxLength="36" Margin="0,6,0,8" AutomationProperties.Name="Confirm device object ID"/>
+   <CheckBox x:Name="DeviceRecoveryAcknowledged" Foreground="{DynamicResource InkBrush}"><TextBlock Text="I verified recovery keys and the impact on every user of this device." TextWrapping="Wrap"/></CheckBox>
+  </StackPanel>
+  <CheckBox x:Name="Acknowledge" Content="I approve this change for the account shown above." Foreground="{DynamicResource InkBrush}" Margin="0,18,0,8"/>
+  <TextBlock x:Name="ValidationMessage" Style="{StaticResource Muted}" Margin="0,8,0,8" AutomationProperties.LiveSetting="Polite"/>
+ </StackPanel></ScrollViewer>
+ <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0"><Button Content="Cancel" IsCancel="True"/><Button x:Name="ApproveButton" Content="Approve change" Click="Approve"/></StackPanel>
+ </Grid></Grid>
+</Window>

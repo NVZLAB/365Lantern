@@ -1,9 +1,12 @@
 param([string]$Dotnet = 'dotnet')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+$commit = (& git -C $root rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or (& git -C $root status --porcelain --untracked-files=normal)) { throw 'Portable releases must be built from a clean committed checkout.' }
 $build = Join-Path $root ('artifacts/portable-' + [guid]::NewGuid().ToString('N'))
 $package = Join-Path $build '365Lantern'
 New-Item $package -ItemType Directory -Force | Out-Null
+if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES = [IO.Path]::GetFullPath($env:NUGET_PACKAGES) }
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:POWERSHELL_TELEMETRY_OPTOUT = '1'
 $env:POWERSHELL_UPDATECHECK = 'Off'
@@ -27,6 +30,9 @@ foreach ($name in $moduleVersions.Keys) { Save-Module -Name $name -RequiredVersi
 if ($LASTEXITCODE -ne 0) { throw 'Portable publish failed.' }
 $version = (Get-Item (Join-Path $package '365Lantern.dll')).VersionInfo.ProductVersion.Split('+')[0]
 Copy-Item (Join-Path $root 'LICENSE'),(Join-Path $root 'CHANGELOG.md'),(Join-Path $PSScriptRoot 'PORTABLE-README.txt') -Destination $package
+Copy-Item (Join-Path $root 'docs') -Destination $package -Recurse
+New-Item (Join-Path $package 'samples') -ItemType Directory -Force | Out-Null
+Copy-Item (Join-Path $root 'tests/fixtures/signins/SYNTHETIC-five-failures-then-success.json') -Destination (Join-Path $package 'samples')
 @{ version=$version; platform='win-x64'; powershell=$psVersion; powershellSourceSha256=$expectedHash; modules=$moduleVersions; signing='365Lantern application is unsigned' } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $package 'dependencies.json')
 # Validate packaged module discovery without signing in or touching a tenant.
 $env:PSModulePath = $modules + [IO.Path]::PathSeparator + (Join-Path $runtime 'Modules')
@@ -35,6 +41,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Packaged module import failed.' }
 $smoke = Join-Path $build 'smoke'
 $process = Start-Process -FilePath (Join-Path $package '365Lantern.exe') -ArgumentList "--smoke-test `"$smoke`"" -WindowStyle Hidden -PassThru -Wait
 if ($process.ExitCode -ne 0 -or !(Test-Path (Join-Path $smoke 'smoke-result.txt'))) { throw 'Packaged app smoke test failed.' }
+& (Join-Path $PSScriptRoot 'Write-ReleaseInventory.ps1') -Package $package -AssetsFile (Join-Path $root 'src/Lantern.Desktop/obj/project.assets.json') -Version $version -Commit $commit
 $files = Get-ChildItem -LiteralPath $package -File -Recurse -Force | ForEach-Object { @{ path=[IO.Path]::GetRelativePath($package,$_.FullName); sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash } }
 ConvertTo-Json -InputObject @($files) -Depth 3 | Set-Content (Join-Path $package 'package-files.json')
 $output = Join-Path $build "365Lantern-$version-win-x64-portable.zip"

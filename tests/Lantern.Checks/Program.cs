@@ -11,7 +11,7 @@ var demo = DemoInvestigation.Run(now, 7);
 Check(demo.IsDemo && demo.Findings.Count == 2, "synthetic fixture is labeled and has two findings");
 using (var zip = new ZipArchive(new MemoryStream(EvidenceExport.Create(demo))))
 {
-    Check(zip.Entries.Count == 9 && zip.GetEntry("findings.json") is not null && zip.GetEntry("findings.csv") is not null, "export automatically includes JSON and CSV findings with evidence and manifest");
+    Check(zip.Entries.Count == 13 && zip.GetEntry("findings.json") is not null && zip.GetEntry("findings.csv") is not null, "export automatically includes JSON and CSV findings with evidence and manifest");
     using var manifest = JsonDocument.Parse(zip.GetEntry("manifest.json")!.Open());
     foreach (var file in manifest.RootElement.GetProperty("files").EnumerateArray())
     {
@@ -135,6 +135,12 @@ if (OperatingSystem.IsWindows())
         var identity = await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", default);
         Check(identity.GetProperty("account").GetString() == "admin@example.com", "module session connects with process-scoped delegated authentication");
         using var moduleHttp = new HttpClient(moduleSession, false);
+        try { await moduleHttp.PostAsync("https://graph.microsoft.com/v1.0/users/22222222-2222-2222-2222-222222222222/revokeSignInSessions", null); throw new Exception("Investigation transport accepted a write"); }
+        catch (InvalidOperationException) { Check(true, "investigation transport stays read-only after adding controlled response"); }
+        using (var applicationLookup = await moduleHttp.GetAsync("https://graph.microsoft.com/v1.0/servicePrincipals/22222222-2222-2222-2222-222222222222?$select=id,appId,displayName,publisherName,servicePrincipalType"))
+            Check(applicationLookup.IsSuccessStatusCode, "default module authentication permits narrowly scoped service-principal identity reads");
+        try { await moduleHttp.GetAsync("https://graph.microsoft.com/v1.0/servicePrincipals/22222222-2222-2222-2222-222222222222/owners"); throw new Exception("Unexpected application endpoint allowed"); }
+        catch (InvalidOperationException) { Check(true, "default module transport rejects unrelated application endpoints"); }
         var moduleResult = await new GraphCollector(moduleHttp, _ => Task.FromResult("module-session")).CollectAsync("test", "alex@example.com", now.AddDays(-1), now, default);
         Check(moduleResult.Evidence.Count == 1, "existing Graph collector reads through authenticated module without receiving tokens");
         var exo = await moduleSession.RequestAsync(new { action = "exchange", account = "alex@example.com" }, default);
@@ -186,6 +192,8 @@ await ActivityChecks.Run(Check);
 SuspiciousChecks.Run(Check);
 await PersistenceChecks.Run(Check);
 await ReleaseChecks.Run(Check);
+ReportChecks.Run(Check);
+await ResponseChecks.Run(Check);
 Console.WriteLine($"{passed} checks passed.");
 
 sealed class ScriptedHandler(IEnumerable<HttpResponseMessage> responses) : HttpMessageHandler

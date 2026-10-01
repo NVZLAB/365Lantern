@@ -22,6 +22,11 @@ Removing the extracted folder removes the app, not your separately saved exports
 or browser/Windows sign-in state. No tenant consent is removed automatically.
 
 See CHANGELOG.md for preview limitations. dependencies.json records bundled
-versions. package-files.json records file hashes. Preserve included upstream
+versions. sbom.cdx.json inventories dependencies/binaries; build-provenance.json
+identifies the source commit. package-files.json records file hashes. Preserve included upstream
 licenses and third-party notices; dependencies retain their respective licenses.
 Project: https://github.com/NVZLAB/365Lantern
+
+Start with samples/SYNTHETIC-five-failures-then-success.json using Offline Investigation.
+See docs/alpha-testing.md for the test checklist and privacy-safe feedback guidance.
+Response is experimental: validate only with disposable accounts/devices initially.

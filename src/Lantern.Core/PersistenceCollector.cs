@@ -30,6 +30,8 @@ public sealed class PersistenceCollector(Func<object, CancellationToken, Task<Js
 
 public sealed class GrantCollector(HttpClient http, Func<CancellationToken, Task<string>> token)
 {
+    public static bool ApplicationAllowed(Uri uri) => uri.Scheme == "https" && uri.Host == "graph.microsoft.com" && uri.Port == 443 && uri.UserInfo.Length == 0 && uri.Fragment.Length == 0 &&
+        uri.AbsolutePath.StartsWith("/v1.0/servicePrincipals/", StringComparison.Ordinal) && Guid.TryParseExact(uri.AbsolutePath["/v1.0/servicePrincipals/".Length..], "D", out _) && uri.Query == "?$select=id,appId,displayName,publisherName,servicePrincipalType";
     public static bool Allowed(Uri uri) => uri.Scheme == "https" && uri.Host == "graph.microsoft.com" && uri.Port == 443 && uri.UserInfo.Length == 0 && uri.Fragment.Length == 0 && uri.AbsolutePath == "/v1.0/oauth2PermissionGrants";
     public async Task<ActivityResult> CollectAsync(string? account, string? id, IReadOnlyList<AccountDetail> accounts, CancellationToken ct)
     {
@@ -70,6 +72,50 @@ public sealed class GrantCollector(HttpClient http, Func<CancellationToken, Task
             catch (Exception) { state = count > 0 || ct.IsCancellationRequested ? "Partial" : "Failed"; detail = ct.IsCancellationRequested ? "Canceled; completed pages retained." : "Query interrupted, unexpected response or safety limit reached (50 pages / 10,000 grants). Completed pages retained."; }
             coverage.Add(new("OAuth delegated grants", state, count, (account ?? "Entire tenant") + ": " + detail));
         }
+        if (evidence.Count > 0) await ResolveApplications(evidence, coverage, ct);
         return new(evidence, coverage);
+    }
+
+    private async Task ResolveApplications(List<Evidence> evidence, List<Coverage> coverage, CancellationToken ct)
+    {
+        var cache = new Dictionary<string, JsonElement?>(StringComparer.OrdinalIgnoreCase);
+        int attempted = 0;
+        bool stop = false;
+        async Task<JsonElement?> Resolve(string id)
+        {
+            if (cache.TryGetValue(id, out var existing)) return existing;
+            cache[id] = null;
+            if (stop || ct.IsCancellationRequested || !Guid.TryParseExact(id, "D", out _) || attempted >= 200) return null;
+            attempted++;
+            try
+            {
+                var uri = new Uri("https://graph.microsoft.com/v1.0/servicePrincipals/" + id + "?$select=id,appId,displayName,publisherName,servicePrincipalType");
+                if (!ApplicationAllowed(uri)) throw new InvalidDataException();
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await token(ct));
+                using var response = await http.SendAsync(request, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if ((int)response.StatusCode is 401 or 403 or 429 || (int)response.StatusCode >= 500) stop = true;
+                    return null;
+                }
+                using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+                var row = json.RootElement;
+                if (!string.Equals(SignInFindings.Text(row, "id"), id, StringComparison.OrdinalIgnoreCase)) return null;
+                cache[id] = JsonSerializer.SerializeToElement(new { id, appId = SignInFindings.Text(row, "appId"), displayName = SignInFindings.Text(row, "displayName"), publisherName = SignInFindings.Text(row, "publisherName"), servicePrincipalType = SignInFindings.Text(row, "servicePrincipalType") });
+                return cache[id];
+            }
+            catch (Exception) { stop = true; return null; }
+        }
+        for (int n = 0; n < evidence.Count; n++)
+        {
+            var e = evidence[n]; var record = e.Data.GetProperty("record");
+            var clientApplication = await Resolve(SignInFindings.Text(record, "clientId"));
+            var resourceApplication = await Resolve(SignInFindings.Text(record, "resourceId"));
+            evidence[n] = e with { Data = JsonSerializer.SerializeToElement(new { account = SignInFindings.Text(e.Data, "account"), record, clientApplication, resourceApplication }) };
+        }
+        int resolved = cache.Values.Count(v => v.HasValue && SignInFindings.Text(v.Value, "displayName").Length > 0);
+        coverage.Add(new("Application identities", resolved == cache.Count ? "Complete" : "Partial", resolved,
+            $"Resolved {resolved} of {cache.Count} referenced service-principal names; maximum 200 lookups. Unavailable names retain object IDs. Permissions, cancellation, deleted objects or request limits may prevent resolution. Names and publishers are directory labels, not proof of trust. Grant records remain available."));
     }
 }

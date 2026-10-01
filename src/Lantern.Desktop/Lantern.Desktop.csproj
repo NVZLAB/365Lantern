@@ -8,6 +8,7 @@
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <None Update="ResponseSession.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="Assets/Lantern.ico" />
     <None Update="ActivityCommands.ps1" CopyToOutputDirectory="PreserveNewest" /><None Update="ModuleSession.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Collect-Exchange.ps1" CopyToOutputDirectory="PreserveNewest" />

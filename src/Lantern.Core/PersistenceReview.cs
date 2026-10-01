@@ -5,6 +5,12 @@ public sealed record PersistenceRow(string Account, string Source, string Princi
 public static class PersistenceReview
 {
     private static string T(JsonElement row, string key) => SignInFindings.Text(row, key);
+    public static string ApplicationLabel(JsonElement wrapper, string field, string objectId)
+    {
+        var app = SignInFindings.Field(wrapper, field);
+        var name = T(app, "displayName");
+        return name.Length > 0 ? $"{name} (object ID: {objectId}; app ID: {T(app, "appId")}; publisher: {T(app, "publisherName")})" : $"Unresolved application (object ID: {objectId})";
+    }
     public static bool IsSnapshot(Evidence e) => e.Source is "Mailbox Full Access" or "Mailbox Send As" or "Mailbox Send on Behalf" or "OAuth delegated grants";
     public static IReadOnlyList<PersistenceRow> Rows(IEnumerable<Evidence> evidence) => evidence.Where(IsSnapshot).Select(e =>
     {
@@ -12,7 +18,7 @@ public static class PersistenceReview
         var access = SignInFindings.Field(d, "AccessRights");
         var rights = access.ValueKind == JsonValueKind.Array ? string.Join(", ", access.EnumerateArray().Where(r => r.ValueKind == JsonValueKind.String).Select(r => r.GetString())) : T(d, "AccessRights");
         var deny = SignInFindings.Field(d, "Deny"); var inherited = SignInFindings.Field(d, "IsInherited");
-        return new PersistenceRow(T(e.Data, "account"), e.Source, e.Source == "OAuth delegated grants" ? T(d, "clientId") : T(d, "Trustee"), e.Source == "OAuth delegated grants" ? T(d, "scope") : rights,
+        return new PersistenceRow(T(e.Data, "account"), e.Source, e.Source == "OAuth delegated grants" ? ApplicationLabel(e.Data, "clientApplication", T(d, "clientId")) : T(d, "Trustee"), e.Source == "OAuth delegated grants" ? T(d, "scope") : rights,
             e.Source == "OAuth delegated grants" ? T(d, "consentType") + " · client object ID" : $"Deny: {(deny.ValueKind == JsonValueKind.True ? "Yes" : deny.ValueKind == JsonValueKind.False ? "No" : "Unreported")}; type: {T(d, "AccessControlType")}; inherited: {(inherited.ValueKind == JsonValueKind.True ? "Yes" : inherited.ValueKind == JsonValueKind.False ? "No" : "Unreported")}", e.Id);
     }).ToArray();
 
@@ -31,7 +37,7 @@ public static class PersistenceReview
                 {
                     var matched = T(d, "scope").Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(sensitive.Contains).ToArray();
                     flagged = matched.Length > 0;
-                    detail = $"Client service-principal object ID: {T(d, "clientId")}; resource object ID: {T(d, "resourceId")}; consent: {T(d, "consentType")}; sensitive delegated scopes: {string.Join(", ", matched)}. Confirm the application and business purpose. This is not application-only access or evidence the grant was used.";
+                    detail = $"Client: {ApplicationLabel(e.Data, "clientApplication", T(d, "clientId"))}; resource: {ApplicationLabel(e.Data, "resourceApplication", T(d, "resourceId"))}; consent: {T(d, "consentType")}; sensitive delegated scopes: {string.Join(", ", matched)}. Names and publisher labels are not proof of trust. Confirm the application and business purpose. This is not application-only access or evidence the grant was used.";
                 }
                 else
                 {
@@ -43,7 +49,8 @@ public static class PersistenceReview
                     flagged = trustee.Length > 0 && !self && !inherited && (e.Source == "Mailbox Full Access" ? Has("FullAccess") && SignInFindings.Field(d, "Deny").ValueKind == JsonValueKind.False : e.Source == "Mailbox Send As" ? Has("SendAs") && T(d, "AccessControlType").Equals("Allow", StringComparison.OrdinalIgnoreCase) : true);
                     detail = $"Trustee: {trustee}. Review this {e.Source} entry and verify authorization. Groups, inherited permissions and deny precedence can alter effective access; this tool does not compute effective permissions.";
                 }
-                if (flagged) results.Add(new("persistence-snapshot", "Medium", "Current access · review required", e.CollectedUtc ?? investigation.CollectedUtc, account, "Review current " + e.Source.ToLowerInvariant(), detail + " Snapshot time is collection time, not grant time; legitimate delegation is common.", [e.Id]));
+                var title = e.Source == "OAuth delegated grants" ? "Review delegated access: " + (T(SignInFindings.Field(e.Data, "clientApplication"), "displayName") is { Length: > 0 } name ? name : T(d, "clientId")) : "Review current " + e.Source.ToLowerInvariant();
+                if (flagged) results.Add(new("persistence-snapshot", "Medium", "Current access · review required", e.CollectedUtc ?? investigation.CollectedUtc, account, title, detail + " Snapshot time is collection time, not grant time; legitimate delegation is common.", [e.Id]));
             }
             if (e.Source != "Entra audit" || !T(e.Data, "result").Equals("success", StringComparison.OrdinalIgnoreCase) || !authChanges.Contains(T(e.Data, "activityDisplayName"))) continue;
             var actor = T(SignInFindings.Field(SignInFindings.Field(e.Data, "initiatedBy"), "user"), "userPrincipalName");

@@ -49,7 +49,7 @@ static class PersistenceChecks
         var grant = new { id = "grant", clientId = "client-object", resourceId = "resource-object", consentType = "AllPrincipals", scope = "Mail.Read offline_access" };
         using var grantsHttp = new HttpClient(new InspectHandler(Response(new { value = new[] { grant } }), Response(new { value = new[] { grant } })));
         var grants = await new GrantCollector(grantsHttp, _ => Task.FromResult("synthetic-token")).CollectAsync("alex@example.com", "11111111-1111-1111-1111-111111111111", [], default);
-        check(grants.Coverage.Count == 2 && grants.Evidence.Count == 1 && PersistenceReview.Analyze(Case(grants.Evidence.ToArray())).Count == 1, "user and tenant-wide delegated grants deduplicate and sensitive scopes surface for review");
+        check(grants.Coverage.Count == 3 && grants.Evidence.Count == 1 && PersistenceReview.Analyze(Case(grants.Evidence.ToArray())).Count == 1, "user and tenant-wide delegated grants deduplicate and sensitive scopes surface for review");
         using var deniedHttp = new HttpClient(new InspectHandler(new HttpResponseMessage(HttpStatusCode.Forbidden)));
         var denied = await new GrantCollector(deniedHttp, _ => Task.FromResult("synthetic-token")).CollectAsync(null, null, [], default);
         check(denied.Evidence.Count == 0 && denied.Coverage.Single().Status == "Failed" && denied.Coverage.Single().Detail.Contains("Directory.Read.All"), "grant denial remains a coverage gap with optional permission guidance");
@@ -57,7 +57,19 @@ static class PersistenceChecks
         using var grantHandler = new InspectHandler(Response(new Dictionary<string, object> { ["value"] = new[] { grant }, ["@odata.nextLink"] = "https://example.invalid/steal" }));
         using var grantHttp = new HttpClient(grantHandler);
         var safeGrant = await new GrantCollector(grantHttp, _ => Task.FromResult("synthetic-token")).CollectAsync(null, null, [], default);
-        check(safeGrant.Evidence.Count == 1 && safeGrant.Coverage.Single().Status == "Partial" && grantHandler.Uris.Count == 1, "unsafe grant continuation retains first page without sending another request");
+        check(safeGrant.Evidence.Count == 1 && safeGrant.Coverage.First().Status == "Partial" && grantHandler.Uris.Count == 1, "unsafe grant continuation retains first page without sending another request");
+        const string appObject = "22222222-2222-2222-2222-222222222222";
+        var namedGrant = new { id = "named", clientId = appObject, resourceId = appObject, consentType = "AllPrincipals", scope = "Mail.Read" };
+        using var namedHandler = new InspectHandler(Response(new { value = new[] { namedGrant } }), Response(new { id = appObject, appId = "33333333-3333-3333-3333-333333333333", displayName = "Synthetic Mail Reader", publisherName = "Synthetic Publisher", servicePrincipalType = "Application" }));
+        using var namedHttp = new HttpClient(namedHandler);
+        var named = await new GrantCollector(namedHttp, _ => Task.FromResult("synthetic-token")).CollectAsync(null, null, [], default);
+        check(namedHandler.Uris.Count == 2 && named.Coverage.Last().Status == "Complete", "application identities resolve once per object even when client and resource match");
+        check(PersistenceReview.Analyze(Case(named.Evidence.ToArray())).Single().Title.Contains("Synthetic Mail Reader") && PersistenceReview.Rows(named.Evidence).Single().Principal.Contains(appObject), "grant labels include readable names while retaining immutable IDs");
+        check(named.Evidence.Single().Data.GetProperty("record").GetProperty("clientId").GetString() == appObject, "application enrichment preserves original grant record");
+        using var deniedNameHttp = new HttpClient(new InspectHandler(Response(new { value = new[] { namedGrant } }), new HttpResponseMessage(HttpStatusCode.Forbidden)));
+        var unresolved = await new GrantCollector(deniedNameHttp, _ => Task.FromResult("synthetic-token")).CollectAsync(null, null, [], default);
+        check(unresolved.Evidence.Count == 1 && unresolved.Coverage.Last().Status == "Partial" && PersistenceReview.Rows(unresolved.Evidence).Single().Principal.Contains("Unresolved"), "name lookup denial preserves grant detection and reports incomplete identity coverage");
+        check(!GrantCollector.ApplicationAllowed(new("https://example.invalid/v1.0/servicePrincipals/" + appObject + "?$select=id,appId,displayName,publisherName,servicePrincipalType")) && !GrantCollector.ApplicationAllowed(new("https://graph.microsoft.com/v1.0/servicePrincipals/" + appObject + "/owners")), "application lookup cannot target foreign hosts or unrelated endpoints");
 
         var original = Case(signs[0]);
         var merged = RelatedAccounts.Merge(original, Case(signs[0], signs[1]), "IP", "192.0.2.1");

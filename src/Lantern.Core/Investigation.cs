@@ -18,6 +18,8 @@ public sealed record Investigation(string Tenant, string Account, DateTimeOffset
     public IReadOnlyList<AccountDetail> Accounts { get; init; } = [];
     public IReadOnlyList<InvestigationPivot> Pivots { get; init; } = [];
     public ImportProvenance? Import { get; init; }
+    public ReportDraft Report { get; init; } = new();
+    public IReadOnlyList<ResponseActionRecord> Responses { get; init; } = [];
 }
 
 public static class DemoInvestigation
@@ -76,7 +78,7 @@ public static class EvidenceExport
         var suspicious = SuspiciousBehavior.Analyze(investigation);
         summary.AppendLine($"\nSuspicious behavior: {suspicious.Count} indicators requiring review. See suspicious.json and suspicious.csv for supporting evidence references.");
         summary.AppendLine(SuspiciousBehavior.Limitations);
-        summary.AppendLine("\nNo response actions were performed by this build. Raw evidence is in evidence.json. Hashes establish file integrity, not independent provenance.");
+        summary.AppendLine("\n" + ResponseActions.Summary(investigation) + " See response.json/csv. Raw evidence is in evidence.json. Hashes establish file integrity, not independent provenance.");
         var files = new Dictionary<string, byte[]> { ["evidence.json"] = evidenceBytes, ["summary.txt"] = Encoding.UTF8.GetBytes(summary.ToString()) };
         files["findings.json"] = Encoding.UTF8.GetBytes(FindingsExport.Json(investigation));
         files["suspicious.json"] = Encoding.UTF8.GetBytes(SuspiciousExport.Json(investigation));
@@ -84,6 +86,10 @@ public static class EvidenceExport
         files["timeline.json"] = JsonSerializer.SerializeToUtf8Bytes(ActivityTimeline.Create(investigation), options);
         files["timeline.csv"] = Encoding.UTF8.GetBytes(FindingsExport.TimelineCsv(investigation));
         files["findings.csv"] = Encoding.UTF8.GetBytes(FindingsExport.Csv(investigation));
+        files["report.html"] = Encoding.UTF8.GetBytes(IncidentReport.Html(investigation));
+        files["report.json"] = Encoding.UTF8.GetBytes(IncidentReport.Json(investigation));
+        files["response.json"] = Encoding.UTF8.GetBytes(ResponseActions.Json(investigation));
+        files["response.csv"] = Encoding.UTF8.GetBytes(ResponseActions.Csv(investigation));
         var manifest = files.Select(f => new { file = f.Key, bytes = f.Value.Length, sha256 = Convert.ToHexString(SHA256.HashData(f.Value)) }).ToArray();
         files["manifest.json"] = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, tool = "365Lantern", version = BuildInfo.Version, build = BuildInfo.InformationalVersion, investigation.CollectedUtc, files = manifest }, options);
         using var buffer = new MemoryStream();
