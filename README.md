@@ -16,8 +16,9 @@ Read the [alpha testing guide](docs/alpha-testing.md) before testing. Use dispos
 
 Portable preview packages are built as Windows x64 ZIPs. Extract the entire package
 and run `365Lantern.exe`; keep the runtime folder and DLLs beside it. No installer
-or separate .NET/PowerShell installation is needed. Public release assets have not
-yet been published. See [portable packaging](docs/portable.md).
+or separate .NET/PowerShell installation is needed. Download the unsigned Windows x64
+[0.1.0-alpha.1 portable release](https://github.com/NVZLAB/365Lantern/releases/tag/v0.1.0-alpha.1).
+See [portable packaging](docs/portable.md) and [release validation](docs/releases/0.1.0-alpha.1-validation.md).
 
 **Check for updates** in the sidebar contacts GitHub only when clicked. It opens
 the release page on request; downloads, extraction and replacement are manual.
@@ -48,12 +49,12 @@ Indicators require analyst review. No findings does not establish safety. Nonint
 
 ## Versions and releases
 
-The shared version is defined in [Directory.Build.props](Directory.Build.props) and shown in the app and evidence exports. The first public preview target is **0.1.0-alpha.1**; no tagged release has been published yet.
+The shared version is defined in [Directory.Build.props](Directory.Build.props) and shown in the app and evidence exports. The current public prerelease is **0.1.0-alpha.1**. Source development has advanced to **0.1.0-alpha.2**; that next version has not been released.
 
 See the [changelog](CHANGELOG.md) for user-facing changes and the [release guide](docs/releasing.md) for version numbering, validation and GitHub prereleases.
 
 An [MSIX per-user installation prototype](docs/msix-prototype.md) wraps the same portable
-build. Signing and clean-machine installation/authentication tests remain release gates;
+build. Public installer signing and installer-specific validation remain release gates;
 the unsigned prototype is not an end-user release.
 
 ## Project layout

@@ -1,11 +1,18 @@
 # Changelog
 
 User-facing changes are recorded here. Versions follow MAJOR.MINOR.PATCH with
-alpha, beta or rc prerelease suffixes. No public tagged release has been published yet.
+alpha, beta or rc prerelease suffixes. Public alpha releases are GitHub prereleases.
 
 ## Unreleased
 
-Target: **0.1.0-alpha.1** — first public investigation preview.
+Next development version: **0.1.0-alpha.2**.
+
+## [0.1.0-alpha.1] - 2026-10-01
+
+First public community alpha. The tested unsigned Windows x64 portable ZIP is available
+on [GitHub Releases](https://github.com/NVZLAB/365Lantern/releases/tag/v0.1.0-alpha.1).
+See [release validation](docs/releases/0.1.0-alpha.1-validation.md) for the exact commit,
+checksum and test scope.
 
 ### Added
 
