@@ -28,7 +28,9 @@ public sealed class ModuleSession : HttpMessageHandler
         if (process is not null) throw new InvalidOperationException("A helper is already active.");
         var start = new ProcessStartInfo(PortableRuntime.PowerShellPath)
         { UseShellExecute = false, CreateNoWindow = false, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
-        foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", Path.Combine(AppContext.BaseDirectory, script) }) start.ArgumentList.Add(arg);
+        // Process only: downloaded ZIPs can mark our unsigned bundled scripts as Internet files.
+        // This does not change user/machine policy; enforced Group Policy still takes precedence.
+        foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(AppContext.BaseDirectory, script) }) start.ArgumentList.Add(arg);
         PortableRuntime.Configure(start);
         process = Process.Start(start) ?? throw new IOException();
         var activeProcess = process;
@@ -56,7 +58,7 @@ public sealed class ModuleSession : HttpMessageHandler
                 if (!json.RootElement.GetProperty("ok").GetBoolean()) throw new InvalidOperationException("Microsoft module operation failed. Check module installation, consent and the selected tenant/account.");
                 return json.RootElement.GetProperty("result").Clone();
             }
-            throw new IOException();
+            throw new IOException("The PowerShell helper exited before returning a result. Check that the package is fully extracted and that organizational application or script policies allow its bundled runtime.");
         }
         catch { await CloseAsync(); throw; }
     }

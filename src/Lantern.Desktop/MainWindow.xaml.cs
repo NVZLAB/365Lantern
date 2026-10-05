@@ -149,6 +149,8 @@ public partial class MainWindow : Window
         catch (ArgumentException ex) { StatusLabel.Text = ex.Message; }
         catch (InvalidOperationException) { StatusLabel.Text = "Microsoft module sign-in failed. Verify PowerShell 7, Graph Authentication 2.36.1+, tenant selection and consent. See the setup guide."; }
         catch (MsalException) { StatusLabel.Text = "Sign-in could not complete. Check the app registration, consent and tenant access, then retry."; }
+        catch (System.IO.IOException) { StatusLabel.Text = "The Microsoft sign-in helper could not start or stopped unexpectedly. Fully extract the package or use the installer. Check organizational application/script restrictions. No credentials were saved."; }
+        catch (System.ComponentModel.Win32Exception) { StatusLabel.Text = "Windows could not launch the bundled PowerShell runtime. Fully extract the package or reinstall, and check antivirus or organizational application restrictions. No credentials were saved."; }
         catch (Exception) { StatusLabel.Text = "Connection failed. No credentials or diagnostic response bodies were saved."; }
         finally
         {

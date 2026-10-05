@@ -5,7 +5,15 @@ alpha, beta or rc prerelease suffixes. Public alpha releases are GitHub prerelea
 
 ## Unreleased
 
-Next development version: **0.1.0-alpha.2**.
+## [0.1.0-alpha.2] - 2026-10-05
+
+Maintainer-tested Windows installer release. See
+[validation record](docs/releases/0.1.0-alpha.2-validation.md).
+
+- Fix helper startup for downloaded ZIPs whose scripts carry Windows Internet-zone markers;
+  execution policy is scoped to the helper process and organizational policy remains authoritative.
+- Add a per-user Windows installer with bundled runtimes, Start menu shortcut and uninstall support.
+- Explain premature sign-in helper failures without recording credentials or server response bodies.
 
 ## [0.1.0-alpha.1] - 2026-10-01
 

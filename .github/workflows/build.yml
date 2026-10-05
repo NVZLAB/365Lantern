@@ -16,3 +16,5 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet build src/Lantern.Desktop/Lantern.Desktop.csproj -c Release
       - run: dotnet run --project tests/Lantern.Checks/Lantern.Checks.csproj -c Release
+      - shell: pwsh
+        run: ./tests/DownloadedHelper.Checks.ps1 -PowerShellRuntime (Get-Command pwsh).Source
