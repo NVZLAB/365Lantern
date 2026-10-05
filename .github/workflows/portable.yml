@@ -29,14 +29,14 @@ jobs:
           if (!$tool) { throw 'MSIX packager missing' }
           $portable = Get-ChildItem artifacts -Directory -Filter 'portable-*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           ./scripts/Build-Msix.ps1 -PortableDirectory (Join-Path $portable.FullName '365Lantern') -MakeAppxPath $tool.FullName
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: 365Lantern-portable-preview
           path: |
             artifacts/portable-*/365Lantern-*-portable.zip
             artifacts/portable-*/365Lantern-*-portable.zip.sha256
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: 365Lantern-unsigned-msix-prototype
           path: |
