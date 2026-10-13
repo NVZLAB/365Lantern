@@ -48,7 +48,7 @@ public sealed class ModuleSession : HttpMessageHandler
     private void ObserveAuthenticationCode(string text)
     {
         // Only forward the short-lived code; never raw host messages, URLs, tokens or exception bodies.
-        var match = System.Text.RegularExpressions.Regex.Match(text, @"enter the code\s+([A-Z0-9]{6,16})\b", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        var match = System.Text.RegularExpressions.Regex.Match(text, @"(?:^LANTERN-AUTH-CODE:|enter the code\s+)([A-Z0-9]{6,16})\b", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
         if (match.Success) lock (authenticationGate) {
             if (acceptingAuthenticationCodes) AuthenticationCodeReceived?.Invoke(match.Groups[1].Value);
         }

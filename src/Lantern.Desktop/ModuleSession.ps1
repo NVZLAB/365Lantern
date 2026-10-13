@@ -19,7 +19,13 @@ try {
                     $scopes = @('AuditLog.Read.All','User.Read.All','Device.Read.All')
                     if ($request.includeGrants) { $scopes += 'Directory.Read.All' }
                     $useDeviceCode = $request.useDeviceCode -eq $true
-                    Connect-MgGraph -TenantId $request.tenant -Scopes $scopes -ContextScope Process -NoWelcome -UseDeviceCode:$useDeviceCode -InformationAction Continue | Out-Null
+                    Connect-MgGraph -TenantId $request.tenant -Scopes $scopes -ContextScope Process -NoWelcome -UseDeviceCode:$useDeviceCode -InformationAction Continue | ForEach-Object {
+                        # Graph emits the device-code callback as a pipeline object, not console output.
+                        # Forward only the validated code; never generic module output or arbitrary URLs.
+                        if ($useDeviceCode -and [string]$_ -cmatch 'enter the code\s+([A-Z0-9]{6,16})\b') {
+                            [Console]::WriteLine(('LANTERN-AUTH-CODE:' + $Matches[1]))
+                        }
+                    }
                     $context = Get-MgContext
                     if ($context.TenantId -ne $request.tenant -or $context.ContextScope -ne 'Process' -or $context.AuthType -ne 'Delegated') { throw 'Context mismatch' }
                     $result = @{tenant=$context.TenantId; account=$context.Account}
