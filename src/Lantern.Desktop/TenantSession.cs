@@ -5,14 +5,14 @@ namespace Lantern.Desktop;
 public sealed class TenantSession
 {
     public ModuleSession? Modules { get; private set; }
-    public async Task ConnectDefaultAsync(string tenant, CancellationToken ct, bool includeGrants = false)
+    public async Task ConnectDefaultAsync(string tenant, CancellationToken ct, bool includeGrants = false, bool useDeviceCode = false, Action<string?>? authenticationCode = null)
     {
         if (!Guid.TryParse(tenant, out _)) throw new ArgumentException("Enter the directory tenant ID (GUID).");
         await DisconnectAsync();
-        var modules = new ModuleSession();
+        var modules = new ModuleSession { AuthenticationCodeReceived = authenticationCode };
         try
         {
-            var context = await modules.ConnectAsync(tenant, ct, includeGrants);
+            var context = await modules.ConnectAsync(tenant, ct, includeGrants, useDeviceCode);
             var connectedTenant = context.GetProperty("tenant").GetString();
             var connectedAccount = context.GetProperty("account").GetString();
             if (!string.Equals(connectedTenant, tenant, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(connectedAccount)) throw new InvalidOperationException("Unexpected module identity.");

@@ -151,6 +151,9 @@ if (OperatingSystem.IsWindows())
         Check(modulePersistence.Coverage.All(c => c.Status == "Complete") && modulePersistence.Evidence.Count == 2, "fixed helper reads Full Access, Send As and Send on Behalf independently");
         var moduleMessage = await new RelatedMessageCollector(moduleSession.RequestAsync).CollectAsync(new("Message", "<test@example.com>"), now.AddDays(-1), now, default);
         Check(moduleMessage.Coverage.Single().Status == "Complete", "fixed helper supports exact message-ID tenant trace query");
+        var authCount = await moduleSession.RequestAsync(new { action = "graph", uri = "https://graph.microsoft.com/v1.0/users" }, default);
+        using (var counts = JsonDocument.Parse(authCount.GetProperty("body").GetString()!))
+            Check(counts.RootElement.GetProperty("exchangeAttempts").GetInt32() == 1, "all Exchange phases reuse one authentication attempt");
         await moduleSession.CloseAsync();
         Check(!moduleSession.Connected, "disconnect terminates the owned helper");
         await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", default, true);
@@ -159,10 +162,25 @@ if (OperatingSystem.IsWindows())
         await moduleSession.ConnectAsync("22222222-2222-2222-2222-222222222222", default);
         var mismatch = await moduleSession.RequestAsync(new { action = "exchange", account = "alex@example.com" }, default);
         Check(!mismatch.GetProperty("mailboxOk").GetBoolean() && !mismatch.GetProperty("rulesOk").GetBoolean(), "Exchange tenant mismatch returns no data while allowing other sources");
+        await moduleSession.RequestAsync(new { action = "activity", kind = "addresses", account = "alex@example.com" }, default);
+        var deniedCount = await moduleSession.RequestAsync(new { action = "graph", uri = "https://graph.microsoft.com/v1.0/users" }, default);
+        using (var counts = JsonDocument.Parse(deniedCount.GetProperty("body").GetString()!))
+            Check(counts.RootElement.GetProperty("exchangeAttempts").GetInt32() == 1, "failed Exchange authentication is not repeated by later phases");
+        await moduleSession.CloseAsync();
+        var codes = new System.Collections.Concurrent.ConcurrentQueue<string?>();
+        moduleSession.AuthenticationCodeReceived = codes.Enqueue;
+        await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", default, useDeviceCode: true);
+        Check(codes.Contains("ABCD12345") && codes.Last() is null, "device sign-in forwards only the short-lived code and clears it on completion");
+        await moduleSession.RequestAsync(new { action = "exchange", account = "alex@example.com" }, default);
+        Check(moduleSession.Connected, "device-code mode also establishes the shared Exchange connection");
         await moduleSession.CloseAsync();
         using var stop = new CancellationTokenSource(); stop.Cancel();
         try { await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", stop.Token); throw new Exception("Cancellation ignored"); }
         catch (OperationCanceledException) { Check(!moduleSession.Connected, "canceled module authentication releases helper"); }
+        using var stalled = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        try { await moduleSession.ConnectAsync("33333333-3333-3333-3333-333333333333", stalled.Token); throw new Exception("Stalled authentication was not canceled"); }
+        catch (OperationCanceledException) { Check(!moduleSession.Connected && elapsed.Elapsed < TimeSpan.FromSeconds(6), "stalled authentication cancels and terminates its helper without restarting the app"); }
     }
     finally { await moduleSession.CloseAsync(); Environment.SetEnvironmentVariable("PSModulePath", previousModulePath); }
 }
