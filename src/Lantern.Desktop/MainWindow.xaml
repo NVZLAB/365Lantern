@@ -72,6 +72,7 @@
               <Button Content="Look up tenant ID in browser…" Click="TenantLookup" HorizontalAlignment="Left" Margin="0,0,0,12"/>
               <TextBlock Text="Directory (tenant) ID"/><TextBox x:Name="TenantIdBox" Margin="0,6,0,14" AutomationProperties.Name="Directory tenant ID"/>
               <CheckBox x:Name="IncludeGrants" Content="Include application-grant inventory (requests optional Directory.Read.All consent)" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
+              <CheckBox x:Name="UseSignInCode" Content="Use a browser sign-in code if the Microsoft sign-in window does not appear" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
               <CheckBox x:Name="AdvancedAuthentication" Content="Advanced: use my own app registration" Checked="AuthenticationModeChanged" Unchecked="AuthenticationModeChanged" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,14"/>
               <StackPanel x:Name="ClientRegistrationPanel" Visibility="Collapsed"><TextBlock Text="Application (client) ID"/><TextBox x:Name="ClientIdBox" Margin="0,6,0,14" AutomationProperties.Name="Application client ID"/><TextBlock Text="Public client with localhost redirect; delegated AuditLog.Read.All, User.Read.All, Device.Read.All and Exchange.Manage permissions." Style="{StaticResource Muted}" Margin="0,0,0,14"/></StackPanel>
               <TextBlock Text="Portable packages include PowerShell and Microsoft modules. Source builds need PowerShell 7, Microsoft.Graph.Authentication 2.36.1+ and ExchangeOnlineManagement 3.7+. Graph uses a process-scoped session. Clear session closes the helper; browser/Windows sign-in state, consent grants and Microsoft audit records may remain." Style="{StaticResource Muted}" Margin="0,0,0,16"/>
@@ -178,7 +179,14 @@
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
-      <Border Grid.Row="2" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,14,0,0" Margin="0,12,0,0"><TextBlock x:Name="StatusLabel" Text="No tenant changes. Findings stay in memory until you explicitly export." Style="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite"/></Border>
+      <Border Grid.Row="2" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,14,0,0" Margin="0,12,0,0"><StackPanel>
+        <StackPanel x:Name="SignInCodePanel" Visibility="Collapsed"><TextBlock Text="Complete Microsoft sign-in at microsoft.com/devicelogin. Use the administrator for this tenant. Do not share this code." Style="{StaticResource Muted}"/>
+          <TextBlock x:Name="SignInCodeText" FontSize="24" FontWeight="Bold"/>
+          <Button Content="Open Microsoft sign-in…" Click="OpenDeviceSignIn" HorizontalAlignment="Left"/>
+        </StackPanel>
+        <Button x:Name="CancelSignInButton" Content="Cancel sign-in / collection" Click="Cancel" Visibility="Collapsed" HorizontalAlignment="Left"/>
+        <TextBlock x:Name="StatusLabel" Text="No tenant changes. Findings stay in memory until you explicitly export." Style="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite"/>
+      </StackPanel></Border>
     </Grid>
   </Grid>
 </Window>

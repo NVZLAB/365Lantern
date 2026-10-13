@@ -4,6 +4,8 @@ $WarningPreference = 'SilentlyContinue'
 $InformationPreference = 'SilentlyContinue'
 . "$PSScriptRoot/ActivityCommands.ps1"
 $context = $null
+$exchangeAttempted = $false
+$useDeviceCode = $false
 try {
     while ($line = [Console]::ReadLine()) {
         try {
@@ -16,7 +18,8 @@ try {
                     Import-Module $module.Path
                     $scopes = @('AuditLog.Read.All','User.Read.All','Device.Read.All')
                     if ($request.includeGrants) { $scopes += 'Directory.Read.All' }
-                    Connect-MgGraph -TenantId $request.tenant -Scopes $scopes -ContextScope Process -NoWelcome | Out-Null
+                    $useDeviceCode = $request.useDeviceCode -eq $true
+                    Connect-MgGraph -TenantId $request.tenant -Scopes $scopes -ContextScope Process -NoWelcome -UseDeviceCode:$useDeviceCode -InformationAction Continue | Out-Null
                     $context = Get-MgContext
                     if ($context.TenantId -ne $request.tenant -or $context.ContextScope -ne 'Process' -or $context.AuthType -ne 'Delegated') { throw 'Context mismatch' }
                     $result = @{tenant=$context.TenantId; account=$context.Account}
@@ -41,7 +44,14 @@ try {
                     if (!$module) { throw 'Missing Exchange module' }
                     Import-Module $module.Path
                     try {
-                        if (@(Get-ConnectionInformation).Count -eq 0) { Connect-ExchangeOnline -UserPrincipalName $context.Account -DisableWAM -ShowBanner:$false -ShowProgress:$false -CommandName Get-Mailbox,Get-InboxRule,Get-MessageTraceV2,Search-UnifiedAuditLog -EnableErrorReporting:$false | Out-Null }
+                        if (@(Get-ConnectionInformation).Count -eq 0) {
+                            # One authentication attempt per helper session; collection failures never loop into sign-in.
+                            if ($exchangeAttempted) { throw 'Exchange authentication unavailable; reconnect explicitly' }
+                            $exchangeAttempted = $true
+                            $auth = @{ShowBanner=$false;ShowProgress=$false;CommandName=@('Get-Mailbox','Get-InboxRule','Get-MessageTraceV2','Search-UnifiedAuditLog');EnableErrorReporting=$false}
+                            if ($useDeviceCode) { $auth.Device=$true } else { $auth.UserPrincipalName=$context.Account; $auth.DisableWAM=$true }
+                            Connect-ExchangeOnline @auth | Out-Null
+                        }
                         $connections = @(Get-ConnectionInformation)
                         if ($connections.Count -ne 1 -or $connections[0].TenantID -ne $context.TenantId -or $connections[0].UserPrincipalName -ne $context.Account) { throw 'Exchange context mismatch' }
                         if ($request.action -eq 'activity') { $result = Invoke-LanternActivity $request; break }

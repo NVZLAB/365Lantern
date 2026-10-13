@@ -5,6 +5,16 @@ alpha, beta or rc prerelease suffixes. Public alpha releases are GitHub prerelea
 
 ## Unreleased
 
+## [0.1.0-alpha.3] - 2026-10-13
+
+- Reuse the Exchange connection across collection phases; a failed authentication
+  attempt is not retried automatically by subsequent checks. Reconnect explicitly to retry.
+- Add a browser sign-in-code option for default Microsoft module authentication,
+  with visible instructions and a fixed Microsoft sign-in link for Graph and Exchange.
+- Add Cancel on the Connect screen and keep helper startup off the UI thread.
+  Sign-in codes stay in memory and are cleared on completion, cancellation or disconnect.
+- Preserve separate Graph/Exchange service authorization and action-specific Response consent.
+
 ## [0.1.0-alpha.2] - 2026-10-05
 
 Maintainer-tested Windows installer release. See

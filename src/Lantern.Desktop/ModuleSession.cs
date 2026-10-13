@@ -12,11 +12,14 @@ public sealed class ModuleSession : HttpMessageHandler
 {
     private Process? process;
     private Task? stderr;
+    public Action<string?>? AuthenticationCodeReceived { get; set; }
+    private readonly object authenticationGate = new();
+    private bool acceptingAuthenticationCodes;
     public bool Connected => process is { HasExited: false };
-    public async Task<JsonElement> ConnectAsync(string tenant, CancellationToken ct, bool includeGrants = false)
+    public async Task<JsonElement> ConnectAsync(string tenant, CancellationToken ct, bool includeGrants = false, bool useDeviceCode = false)
     {
         StartHelper("ModuleSession.ps1");
-        return await RequestAsync(new { action = "connect", tenant, includeGrants }, ct);
+        return await RequestAsync(new { action = "connect", tenant, includeGrants, useDeviceCode }, ct);
     }
     public async Task<JsonElement> PrepareResponseAsync(string tenant, string actor, string targetId, CancellationToken ct, string operation = "revoke")
     {
@@ -34,11 +37,26 @@ public sealed class ModuleSession : HttpMessageHandler
         PortableRuntime.Configure(start);
         process = Process.Start(start) ?? throw new IOException();
         var activeProcess = process;
-        stderr = Task.Run(async () => { var buffer = new char[4096]; while (await activeProcess.StandardError.ReadAsync(buffer) != 0) Array.Clear(buffer); });
+        stderr = Task.Run(async () => {
+            var buffer = new char[1]; var line = new StringBuilder();
+            while (await activeProcess.StandardError.ReadAsync(buffer) != 0) {
+                if (buffer[0] == '\n') { ObserveAuthenticationCode(line.ToString()); line.Clear(); }
+                else if (line.Length < 2048) line.Append(buffer[0]);
+            }
+        });
+    }
+    private void ObserveAuthenticationCode(string text)
+    {
+        // Only forward the short-lived code; never raw host messages, URLs, tokens or exception bodies.
+        var match = System.Text.RegularExpressions.Regex.Match(text, @"enter the code\s+([A-Z0-9]{6,16})\b", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (match.Success) lock (authenticationGate) {
+            if (acceptingAuthenticationCodes) AuthenticationCodeReceived?.Invoke(match.Groups[1].Value);
+        }
     }
     public async Task<JsonElement> RequestAsync(object request, CancellationToken ct)
     {
         var active = process ?? throw new InvalidOperationException();
+        lock (authenticationGate) acceptingAuthenticationCodes = true;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         try
@@ -53,9 +71,10 @@ public sealed class ModuleSession : HttpMessageHandler
                 if (++total > 32 * 1024 * 1024) throw new InvalidDataException();
                 if (buffer[0] != '\n') { line.Append(buffer[0]); continue; }
                 var value = line.ToString().TrimEnd('\r'); line.Clear();
-                if (!value.StartsWith("LANTERN:", StringComparison.Ordinal)) continue;
+                if (!value.StartsWith("LANTERN:", StringComparison.Ordinal)) { ObserveAuthenticationCode(value); continue; }
                 using var json = JsonDocument.Parse(value[8..]);
                 if (!json.RootElement.GetProperty("ok").GetBoolean()) throw new InvalidOperationException("Microsoft module operation failed. Check module installation, consent and the selected tenant/account.");
+                ClearAuthenticationCode();
                 return json.RootElement.GetProperty("result").Clone();
             }
             throw new IOException("The PowerShell helper exited before returning a result. Check that the package is fully extracted and that organizational application or script policies allow its bundled runtime.");
@@ -70,6 +89,7 @@ public sealed class ModuleSession : HttpMessageHandler
     }
     public async Task CloseAsync()
     {
+        ClearAuthenticationCode();
         var active = process; process = null;
         if (active is null) return;
         try
@@ -84,5 +104,9 @@ public sealed class ModuleSession : HttpMessageHandler
             if (stderr is not null) await stderr;
         }
         finally { active.Dispose(); }
+    }
+    private void ClearAuthenticationCode()
+    {
+        lock (authenticationGate) { acceptingAuthenticationCodes = false; AuthenticationCodeReceived?.Invoke(null); }
     }
 }

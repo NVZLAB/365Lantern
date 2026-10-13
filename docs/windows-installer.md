@@ -6,6 +6,19 @@ uninstaller. It bundles the same application, PowerShell and Microsoft modules a
 the portable edition. No administrator elevation, background updater or service
 is required. Windows may warn about the unsigned publisher.
 
+If Microsoft sign-in does not appear, select Cancel on the Connect screen, enable
+"Use a browser sign-in code", and retry. When a code appears in Lantern, open
+the Microsoft sign-in link and enter that code using the intended administrator
+account. You do not need to close existing browser windows. Never share a code.
+Graph and Exchange require different service tokens, so a separate Exchange
+authorization may still appear when collection starts. The validated Exchange
+connection is reused; failed authentication is not repeated by subsequent checks.
+Reconnect explicitly to retry. Response consent remains separate.
+
+Some tenants prohibit device-code authentication through Conditional Access.
+Use the normal sign-in option or an approved custom app registration in those
+tenants; Lantern does not bypass tenant policy. Codes are not saved or exported.
+
 Build a validated portable payload with `scripts/Build-Portable.ps1`, then run:
 
 ```powershell

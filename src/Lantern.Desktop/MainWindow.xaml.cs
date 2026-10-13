@@ -104,6 +104,9 @@ public partial class MainWindow : Window
     }
     private void SetBusy(bool busy)
     {
+        CancelSignInButton.Visibility = busy && page != "Response" ? Visibility.Visible : Visibility.Collapsed;
+        UseSignInCode.IsEnabled = !busy;
+        if (!busy) { SignInCodeText.Text = ""; SignInCodePanel.Visibility = Visibility.Collapsed; }
         if (!busy) CollectionAnimation.Visibility = Visibility.Collapsed;
         OfflineButton.IsEnabled = ConnectButton.IsEnabled = DisconnectButton.IsEnabled = !busy;
         CollectButton.IsEnabled = !busy && session.IsConnected;
@@ -142,7 +145,11 @@ public partial class MainWindow : Window
         try
         {
             if (AdvancedAuthentication.IsChecked == true) await session.ConnectAsync(ClientIdBox.Text.Trim(), TenantIdBox.Text.Trim(), operation.Token, IncludeGrants.IsChecked == true);
-            else await session.ConnectDefaultAsync(TenantIdBox.Text.Trim(), operation.Token, IncludeGrants.IsChecked == true);
+            else {
+                var tenant = TenantIdBox.Text.Trim(); var grants = IncludeGrants.IsChecked == true;
+                var code = UseSignInCode.IsChecked == true; var token = operation.Token;
+                await Task.Run(() => session.ConnectDefaultAsync(tenant, token, grants, code, ShowAuthenticationCode), token);
+            }
             if (!closing) ShowConnected(session.TenantId!, session.Operator);
         }
         catch (OperationCanceledException) { StatusLabel.Text = "Sign-in canceled or timed out. No tenant changes made."; }
@@ -158,6 +165,12 @@ public partial class MainWindow : Window
             operation.Dispose(); operation = null; SetBusy(false);
         }
     }
+    private void ShowAuthenticationCode(string? code) => Dispatcher.BeginInvoke(new Action(() => {
+        if (closing || operation is null || operation.IsCancellationRequested) return;
+        SignInCodeText.Text = code ?? "";
+        SignInCodePanel.Visibility = code is null ? Visibility.Collapsed : Visibility.Visible;
+    }));
+    private void OpenDeviceSignIn(object sender, RoutedEventArgs e) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://microsoft.com/devicelogin") { UseShellExecute = true });
     private async void Collect(object sender, RoutedEventArgs e) => await RunCollection();
     private async Task RunCollection(string? relatedAccount = null)
     {
@@ -472,6 +485,12 @@ public partial class MainWindow : Window
     {
         // Explicit developer-only invocation; exclusively synthetic data. No auth is started.
         Directory.CreateDirectory(directory);
+        ShowPage("Connect tenant");
+        operation = new CancellationTokenSource(); SetBusy(true);
+        ShowAuthenticationCode("ABCD12345"); await Task.Delay(100); UpdateLayout();
+        if (!CancelSignInButton.IsVisible || !SignInCodePanel.IsVisible || SignInCodeText.Text != "ABCD12345") throw new InvalidOperationException("Sign-in recovery controls unavailable.");
+        operation.Cancel(); operation.Dispose(); operation = null; SetBusy(false);
+        if (SignInCodePanel.Visibility != Visibility.Collapsed || SignInCodeText.Text.Length != 0) throw new InvalidOperationException("Sign-in code not cleared.");
         ShowPage("Investigate"); SetBusy(true); CollectionAnimation.Visibility = Visibility.Visible;
         foreach (var theme in new[] { "Light", "Dark" })
         {
