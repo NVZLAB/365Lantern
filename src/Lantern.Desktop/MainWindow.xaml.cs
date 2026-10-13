@@ -170,7 +170,12 @@ public partial class MainWindow : Window
         SignInCodeText.Text = code ?? "";
         SignInCodePanel.Visibility = code is null ? Visibility.Collapsed : Visibility.Visible;
     }));
-    private void OpenDeviceSignIn(object sender, RoutedEventArgs e) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://microsoft.com/devicelogin") { UseShellExecute = true });
+    private void OpenDeviceSignIn(object sender, RoutedEventArgs e)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://microsoft.com/devicelogin") { UseShellExecute = true }); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        { StatusLabel.Text = "Could not open your default browser. Open https://microsoft.com/devicelogin manually and enter the code shown above, or select Cancel."; }
+    }
     private async void Collect(object sender, RoutedEventArgs e) => await RunCollection();
     private async Task RunCollection(string? relatedAccount = null)
     {
