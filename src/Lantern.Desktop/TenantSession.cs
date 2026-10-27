@@ -27,6 +27,9 @@ public sealed class TenantSession
     public string? TenantId { get; private set; }
     public string? Operator { get; private set; }
     public bool IsConnected => Modules?.Connected == true || (client is not null && account is not null);
+    // Identity is retained only from a successful sign-in and cleared by DisconnectAsync.
+    // This permits fresh response authorization; it is not evidence of an active access token.
+    public bool HasVerifiedIdentity => Guid.TryParse(TenantId, out _) && !string.IsNullOrWhiteSpace(Operator);
 
     public async Task ConnectAsync(string clientId, string tenantId, CancellationToken ct, bool includeGrants = false)
     {

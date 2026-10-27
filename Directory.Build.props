@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- Shared release identity. Remove VersionSuffix for a stable release. -->
     <VersionPrefix>0.1.0</VersionPrefix>
-    <VersionSuffix>alpha.3</VersionSuffix>
+    <VersionSuffix>alpha.4</VersionSuffix>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

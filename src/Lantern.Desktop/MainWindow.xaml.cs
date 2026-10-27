@@ -490,6 +490,24 @@ public partial class MainWindow : Window
     {
         // Explicit developer-only invocation; exclusively synthetic data. No auth is started.
         Directory.CreateDirectory(directory);
+        // Synthetic UI regression only: no helper or authentication is started here.
+        var tenantProperty = typeof(TenantSession).GetProperty(nameof(TenantSession.TenantId))!;
+        var actorProperty = typeof(TenantSession).GetProperty(nameof(TenantSession.Operator))!;
+        tenantProperty.SetValue(session, "11111111-1111-1111-1111-111111111111");
+        actorProperty.SetValue(session, "admin@example.com");
+        investigation = DemoInvestigation.Run(DateTimeOffset.UtcNow, 1) with {
+            IsDemo = false, Tenant = session.TenantId!,
+            Accounts = [new AccountDetail("22222222-2222-2222-2222-222222222222", "test@example.com", "", "", "", "")] };
+        ShowPage("Response"); SetBusy(false);
+        if (session.IsConnected || !ResponseEditor.IsEnabled || !ResponseReason.IsEnabled || !ResponseAvailability.Text.Contains("connection has ended")) throw new InvalidOperationException("Response recovery from ended collector failed.");
+        operation = new CancellationTokenSource(); SetBusy(true);
+        if (ResponseEditor.IsEnabled) throw new InvalidOperationException("Busy response guard failed.");
+        operation.Dispose(); operation = null;
+        tenantProperty.SetValue(session, "33333333-3333-3333-3333-333333333333"); SetBusy(false);
+        if (ResponseEditor.IsEnabled) throw new InvalidOperationException("Response tenant mismatch guard failed.");
+        await session.DisconnectAsync(); SetBusy(false);
+        if (ResponseEditor.IsEnabled) throw new InvalidOperationException("Cleared response identity guard failed.");
+        investigation = null;
         ShowPage("Connect tenant");
         operation = new CancellationTokenSource(); SetBusy(true);
         ShowAuthenticationCode("ABCD12345"); await Task.Delay(100); UpdateLayout();

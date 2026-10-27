@@ -5,6 +5,17 @@ alpha, beta or rc prerelease suffixes. Public alpha releases are GitHub prerelea
 
 ## Unreleased
 
+## [0.1.0-alpha.4] - 2026-10-27
+
+Maintainer-tested Response recovery release. See
+[validation record](docs/releases/0.1.0-alpha.4-validation.md).
+
+- Allow Response preparation from a retained live investigation after its read-only
+  helper ends. Fresh sign-in must still match the verified tenant and administrator;
+  separate consent, target checks and final approval remain required.
+- Explain why Response is disabled for imported/demo cases, a cleared identity,
+  tenant mismatch or missing collected account identities.
+
 ## [0.1.0-alpha.3] - 2026-10-13
 
 - Reuse the Exchange connection across collection phases; a failed authentication
