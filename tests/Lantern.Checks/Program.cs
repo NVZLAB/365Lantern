@@ -132,6 +132,15 @@ if (OperatingSystem.IsWindows())
     var moduleSession = new Lantern.Desktop.ModuleSession();
     try
     {
+        var retainedSession = new Lantern.Desktop.TenantSession();
+        Check(!retainedSession.HasVerifiedIdentity, "response preparation requires a previously verified session identity");
+        await retainedSession.ConnectDefaultAsync("11111111-1111-1111-1111-111111111111", default);
+        Check(retainedSession.HasVerifiedIdentity && retainedSession.IsConnected, "successful sign-in establishes verified response identity");
+        await retainedSession.Modules!.CloseAsync();
+        Check(!retainedSession.IsConnected && retainedSession.HasVerifiedIdentity, "ending read-only helper retains identity for separate response authorization");
+        Check(ResponseActions.Eligible(DemoInvestigation.Run(now, 1) with { IsDemo = false, Tenant = retainedSession.TenantId! }, retainedSession.TenantId), "retained matching live investigation can request fresh response authorization");
+        await retainedSession.DisconnectAsync();
+        Check(!retainedSession.HasVerifiedIdentity && retainedSession.TenantId is null && retainedSession.Operator is null, "explicit disconnect removes response authorization context");
         var identity = await moduleSession.ConnectAsync("11111111-1111-1111-1111-111111111111", default);
         Check(identity.GetProperty("account").GetString() == "admin@example.com", "module session connects with process-scoped delegated authentication");
         using var moduleHttp = new HttpClient(moduleSession, false);

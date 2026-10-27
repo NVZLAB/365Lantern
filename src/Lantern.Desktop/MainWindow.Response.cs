@@ -26,9 +26,13 @@ public partial class MainWindow
     }
     private void RefreshResponse()
     {
-        var eligible = ResponseActions.Eligible(investigation, session.TenantId) && session.IsConnected;
-        ResponseAvailability.Text = eligible ? "Choose a collected account. Response authorization uses Microsoft Graph PowerShell in a separate process."
-            : "Connect to the same tenant and collect a live investigation first. Offline and synthetic cases cannot perform tenant changes.";
+        var eligible = ResponseActions.Eligible(investigation, session.TenantId) && session.HasVerifiedIdentity;
+        ResponseAvailability.Text = eligible
+            ? (session.IsConnected ? "Choose a collected account. Response authorization uses Microsoft Graph PowerShell in a separate process."
+                : "The read-only collection connection has ended. Your live investigation is retained. Choose an action and prepare it to sign in again as the same administrator; no change is sent before final approval.")
+            : investigation is { IsDemo: false, Import: null }
+                ? "Response requires a verified sign-in for this investigation's tenant. The current session has been cleared or does not match. Export your evidence before reconnecting; reconnecting starts a new investigation."
+                : "Collect a live investigation first. Offline and synthetic investigations cannot authorize response actions.";
         var selected = (ResponseAccount.SelectedItem as AccountDetail)?.Id;
         ResponseAccount.ItemsSource = investigation?.Accounts.Where(a => Guid.TryParse(a.Id, out _)).ToArray();
         if (eligible && ResponseAccount.Items.Count == 0) ResponseAvailability.Text = "No directory account identities were collected. Resolve the account inventory permission or collection gap and investigate again before responding.";
@@ -52,7 +56,7 @@ public partial class MainWindow
     }
     private async void PrepareRevocation(object sender, RoutedEventArgs e)
     {
-        if (responseBusy || operation is not null || !session.IsConnected || !ResponseActions.Eligible(investigation, session.TenantId)
+        if (responseBusy || operation is not null || !session.HasVerifiedIdentity || !ResponseActions.Eligible(investigation, session.TenantId)
             || investigation is null || ResponseAccount.SelectedItem is not AccountDetail selected || !LeaveAssessment()) return;
         var reason = ResponseReason.Text.Trim();
         if (reason.Length == 0) { ResponseStatus.Text = "Enter a reason or authorization reference before preparing the action."; return; }

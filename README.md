@@ -49,7 +49,7 @@ Indicators require analyst review. No findings does not establish safety. Nonint
 
 ## Versions and releases
 
-The shared version is defined in [Directory.Build.props](Directory.Build.props) and shown in the app and evidence exports. The current public prerelease is **0.1.0-alpha.3**. Download the per-user Windows installer from [GitHub Releases](https://github.com/NVZLAB/365Lantern/releases).
+The shared version is defined in [Directory.Build.props](Directory.Build.props) and shown in the app and evidence exports. The current public prerelease is **0.1.0-alpha.4**. Download the per-user Windows installer from [GitHub Releases](https://github.com/NVZLAB/365Lantern/releases).
 
 See the [changelog](CHANGELOG.md) for user-facing changes and the [release guide](docs/releasing.md) for version numbering, validation and GitHub prereleases.
 
